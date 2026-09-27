@@ -340,6 +340,21 @@ object AppearanceConfig {
         return showFeedUnreadCounter.Bool()
     }
 
+    // ---- Клипы ----
+
+    /**
+     * Показывать «Клипы» нижней вкладкой — сразу после «Чатов».
+     * Дефолт false: фича не должна сама менять панель у тех, кто её не включал.
+     */
+    @JvmField
+    val showReelsTab = addConfig("OEAppearanceShowReelsTab", ConfigItem.configTypeBool, false)
+
+    @JvmStatic
+    fun showReelsTab(): Boolean {
+        ensureLoaded()
+        return showReelsTab.Bool()
+    }
+
     @JvmStatic
     fun navigationDrawer(): Boolean {
         ensureLoaded()

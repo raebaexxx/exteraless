@@ -711,6 +711,8 @@ public final class BaseIconPacks {
         map.put(R.drawable.tabs_calls_active_24,      R.drawable.tabs_calls_active_remix);
         map.put(R.drawable.ic_feed,                   R.drawable.ic_feed_remix);
         map.put(R.drawable.ic_feed_filled,            R.drawable.ic_feed_filled_remix);
+        map.put(R.drawable.ic_reels,                  R.drawable.ic_reels_remix);
+        map.put(R.drawable.ic_reels_filled,           R.drawable.ic_reels_filled_remix);
         map.put(R.drawable.popup_fixed_alert,         R.drawable.popup_fixed_alert4);
         map.put(R.drawable.popup_fixed_alert2,        R.drawable.popup_fixed_alert4);
         map.put(R.drawable.popup_fixed_alert3,        R.drawable.popup_fixed_alert4);
@@ -1265,6 +1267,8 @@ public final class BaseIconPacks {
         map.put(R.drawable.tabs_calls_active_24,      R.drawable.tabs_calls_active_solar);
         map.put(R.drawable.ic_feed,                   R.drawable.ic_feed_solar);
         map.put(R.drawable.ic_feed_filled,            R.drawable.ic_feed_filled_solar);
+        map.put(R.drawable.ic_reels,                  R.drawable.ic_reels_solar);
+        map.put(R.drawable.ic_reels_filled,           R.drawable.ic_reels_filled_solar);
 
         // ---- наши подмены, которых нет в exteraGram (наследие NagramX/AyuGram) ----
         map.put(R.drawable.ayu_ghost,           R.drawable.ayu_ghost_solar);

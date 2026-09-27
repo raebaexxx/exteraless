@@ -342,6 +342,7 @@ public final class EtgBackup {
         bool(list, "navigationDrawer", AppearanceConfig.navigationDrawer);
         bool(list, "immersiveDrawerAnimation", AppearanceConfig.immersiveDrawerAnimation);
         bool(list, "showFeedTab", AppearanceConfig.showFeedTab);
+        bool(list, "showReelsTab", AppearanceConfig.showReelsTab);
         bool(list, "hideStickerTime", NekoConfig.hideTimeForSticker);
         bool(list, "replyColors", ChatsConfig.replyColors);
         bool(list, "replyEmoji", ChatsConfig.replyEmoji);

@@ -17,6 +17,20 @@ public final class MainTabsHelper {
     public static final int TAB_WIDTH = 80;
     public static final int TAB_PADDING = 4;
 
+    /**
+     * Порядок слотов нижней панели. Позиции не константы: часть вкладок можно скрыть,
+     * а часть занимает один слот по очереди («Лента» или «Контакты»). Поэтому позиция
+     * считается функцией от набора видимых вкладок, а {@link MainTabsActivity} спрашивает
+     * её здесь, а не держит свои номера.
+     *
+     * <p>Порядок: «Чаты», «Клипы», «Лента»/«Контакты», «Звонки»/«Настройки», «Профиль».
+     */
+    public static final int SLOT_CHATS = 0;
+    public static final int SLOT_REELS = 1;
+    public static final int SLOT_FEED_OR_CONTACTS = 2;
+    public static final int SLOT_CALLS_OR_SETTINGS = 3;
+    public static final int SLOT_PROFILE = 4;
+
     private MainTabsHelper() {
     }
 
@@ -59,38 +73,131 @@ public final class MainTabsHelper {
         return AppearanceConfig.showFeedTab();
     }
 
+    /** Отдельная вкладка «Клипы» — вторая по счёту, сразу после «Чатов». */
+    public static boolean isReelsTabShown() {
+        return AppearanceConfig.showReelsTab();
+    }
+
+    /**
+     * Вкладка «Лента» включена. Как и раньше, она занимает слот «Контактов» независимо от
+     * настройки «Контакты»: включил ленту — значит она вместо них.
+     */
+    public static boolean isFeedTabEnabled() {
+        return isFeedTabShown();
+    }
+
+    public static boolean hasFeedOrContactsTab() {
+        return !isContactsTabHidden() || isFeedTabEnabled();
+    }
+
     public static boolean hasContactsOrFeedTab() {
-        return !isContactsTabHidden() || isFeedTabShown();
+        return hasFeedOrContactsTab();
     }
 
     public static int getChatsPosition() {
-        return 0;
+        return SLOT_CHATS;
     }
 
-    public static int getContactsPosition() {
-        return 1;
+    public static int getReelsPosition() {
+        return isReelsTabShown() ? SLOT_REELS : -1;
+    }
+
+    /**
+     * Позиция слота, который занимает либо «Лента», либо «Контакты»;
+     * -1, если слот не занят.
+     */
+    public static int getFeedOrContactsPosition() {
+        if (!hasFeedOrContactsTab()) {
+            return -1;
+        }
+        return isReelsTabShown() ? SLOT_FEED_OR_CONTACTS : SLOT_REELS;
     }
 
     public static int getCallsOrSettingsPosition() {
-        return hasContactsOrFeedTab() ? 2 : 1;
+        // Слот идёт после всех вкладок, которые стоят перед ним; скрытые вкладки
+        // места не занимают.
+        int position = getChatsPosition() + 1;
+        if (isReelsTabShown()) {
+            position++;
+        }
+        if (hasFeedOrContactsTab()) {
+            position++;
+        }
+        return position;
     }
 
     public static int getProfilePosition() {
         if (isProfileTabHidden()) {
             return -1;
         }
-        return hasContactsOrFeedTab() ? 3 : 2;
+        return getCallsOrSettingsPosition() + 1;
     }
 
     public static int getFragmentsCount() {
         int count = MainTabsActivity.TABS_COUNT;
-        if (!hasContactsOrFeedTab()) {
+        if (!hasFeedOrContactsTab()) {
             count--;
+        }
+        if (isReelsTabShown()) {
+            count++;
         }
         if (isProfileTabHidden()) {
             count--;
         }
         return count;
+    }
+
+    /**
+     * Какой слот вкладки находится на указанной позиции пейджера, либо -1, если позиция
+     * за пределами панели. Слоты всегда идут подряд, без дыр, поэтому достаточно сравнений.
+     */
+    public static int getSlotAtPosition(int position) {
+        if (position == 0) {
+            return SLOT_CHATS;
+        }
+        if (position < 0) {
+            return -1;
+        }
+        int next = 1;
+        if (isReelsTabShown()) {
+            if (position == next++) {
+                return SLOT_REELS;
+            }
+        }
+        if (hasFeedOrContactsTab()) {
+            if (position == next++) {
+                return SLOT_FEED_OR_CONTACTS;
+            }
+        }
+        if (position == next++) {
+            return SLOT_CALLS_OR_SETTINGS;
+        }
+        if (!isProfileTabHidden()) {
+            if (position == next) {
+                return SLOT_PROFILE;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Позиция слота в пейджере либо -1, если вкладка скрыта.
+     */
+    public static int getPositionForSlot(int slot) {
+        switch (slot) {
+            case SLOT_CHATS:
+                return getChatsPosition();
+            case SLOT_REELS:
+                return getReelsPosition();
+            case SLOT_FEED_OR_CONTACTS:
+                return getFeedOrContactsPosition();
+            case SLOT_CALLS_OR_SETTINGS:
+                return getCallsOrSettingsPosition();
+            case SLOT_PROFILE:
+                return getProfilePosition();
+            default:
+                return -1;
+        }
     }
 
     public static int getTabsViewWidth() {

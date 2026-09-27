@@ -648,6 +648,16 @@ public final class ExteraConfig {
         AppearanceConfig.showFeedUnreadCounter.setConfigBool(value);
     }
 
+    public static boolean getShowReelsTab() {
+        ensureLoaded();
+        return AppearanceConfig.showReelsTab.Bool();
+    }
+
+    public static void setShowReelsTab(boolean value) {
+        ensureLoaded();
+        AppearanceConfig.showReelsTab.setConfigBool(value);
+    }
+
     public static float getStickerSize() {
         ensureLoaded();
         return (float) (NekoConfig.stickerSize.Float());
@@ -1467,6 +1477,9 @@ public final class ExteraConfig {
             case "showFeedTab":
                 setShowFeedTab(value);
                 return true;
+            case "showReelsTab":
+                setShowReelsTab(value);
+                return true;
             case "showFeedUnreadCounter":
                 setShowFeedUnreadCounter(value);
                 return true;
@@ -2097,6 +2110,7 @@ public final class ExteraConfig {
             new PreferencesUtils.BackupItem("immersiveDrawerAnimation", Boolean.class),
             new PreferencesUtils.BackupItem("showFeedTab", Boolean.class),
             new PreferencesUtils.BackupItem("showFeedUnreadCounter", Boolean.class),
+            new PreferencesUtils.BackupItem("showReelsTab", Boolean.class),
             new PreferencesUtils.BackupItem("stickerSize", Float.class),
             new PreferencesUtils.BackupItem("hideStickerTime", Boolean.class),
             new PreferencesUtils.BackupItem("replyColors", Boolean.class),

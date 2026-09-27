@@ -15,6 +15,7 @@ import java.util.function.IntPredicate;
 
 import app.exteraless.components.QRCodeSheet;
 import app.exteraless.feed.ui.FeedActivity;
+import app.exteraless.reels.ui.ReelsActivity;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.BuildVars;
@@ -252,6 +253,9 @@ public final class MainMenuHelper {
             case FEED:
                 return new MenuItemInfo(R.drawable.ic_feed, LocaleController.getString(R.string.Feed),
                         () -> FeedActivity.presentFeed(fragment), null);
+            case REELS:
+                return new MenuItemInfo(R.drawable.ic_reels, LocaleController.getString(R.string.Reels),
+                        () -> ReelsActivity.presentReels(fragment), null);
             case SETTINGS:
                 return new MenuItemInfo(R.drawable.msg_settings, LocaleController.getString(R.string.Settings),
                         () -> fragment.presentFragment(new SettingsActivity()), null);
@@ -387,6 +391,7 @@ public final class MainMenuHelper {
             case CALLS -> new MenuItemInfo(R.drawable.msg_calls, LocaleController.getString(R.string.Calls), null, null);
             case SAVED -> new MenuItemInfo(R.drawable.msg_saved, LocaleController.getString(R.string.SavedMessages), null, null);
             case FEED -> new MenuItemInfo(R.drawable.ic_feed, LocaleController.getString(R.string.Feed), null, null);
+            case REELS -> new MenuItemInfo(R.drawable.ic_reels, LocaleController.getString(R.string.Reels), null, null);
             case SETTINGS -> new MenuItemInfo(R.drawable.msg_settings, LocaleController.getString(R.string.Settings), null, null);
             case BROWSER -> new MenuItemInfo(R.drawable.msg2_language, LocaleController.getString(R.string.BrowserSettingsTitle), null, null);
             case PLUGINS -> new MenuItemInfo(R.drawable.msg_plugins, LocaleController.getString(R.string.OpenExteraPlugins), null, null);
