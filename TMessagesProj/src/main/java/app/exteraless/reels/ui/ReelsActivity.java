@@ -101,6 +101,7 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
     private int scrollState = RecyclerView.SCROLL_STATE_IDLE;
     private boolean attachPending;
     private int attachRetries;
+    private int commentsRequestId;
     private int lastConfigGeneration;
     private int topInset;
     private int bottomInset;
@@ -160,6 +161,10 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
         AndroidUtilities.cancelRunOnUIThread(progressRunnable);
         AndroidUtilities.cancelRunOnUIThread(attachRunnable);
         progressScheduled = false;
+        if (commentsRequestId != 0) {
+            ConnectionsManager.getInstance(currentAccount).cancelRequest(commentsRequestId, false);
+            commentsRequestId = 0;
+        }
         if (player != null) {
             player.setCallback(null);
             player.release();
@@ -866,27 +871,41 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
         TLRPC.TL_messages_getDiscussionMessage request = new TLRPC.TL_messages_getDiscussionMessage();
         request.peer = MessagesController.getInputPeer(chat);
         request.msg_id = message.getRealId();
-        ConnectionsManager.getInstance(currentAccount).sendRequest(request, (response, error) -> {
-            if (!(response instanceof TLRPC.TL_messages_discussionMessage)) {
-                showNoComments();
-                return;
-            }
-            TLRPC.TL_messages_discussionMessage discussion = (TLRPC.TL_messages_discussionMessage) response;
-            getMessagesController().putUsers(discussion.users, false);
-            getMessagesController().putChats(discussion.chats, false);
-            for (int i = 0; i < discussion.messages.size(); i++) {
-                TLRPC.Message root = discussion.messages.get(i);
-                if (root instanceof TLRPC.TL_messageEmpty) {
-                    continue;
+        commentsRequestId = ConnectionsManager.getInstance(currentAccount).sendRequest(request, (response, error) -> {
+            Runnable runnable = () -> {
+                commentsRequestId = 0;
+                long dialogId = 0;
+                int rootId = 0;
+                if (response instanceof TLRPC.TL_messages_discussionMessage) {
+                    TLRPC.TL_messages_discussionMessage discussion = (TLRPC.TL_messages_discussionMessage) response;
+                    getMessagesController().putUsers(discussion.users, false);
+                    getMessagesController().putChats(discussion.chats, false);
+                    for (int i = 0; i < discussion.messages.size(); i++) {
+                        TLRPC.Message root = discussion.messages.get(i);
+                        if (root instanceof TLRPC.TL_messageEmpty) {
+                            continue;
+                        }
+                        long candidate = MessageObject.getDialogId(root);
+                        if (candidate == 0 || candidate == channelId) {
+                            // Корень ветки лежит в группе обсуждений; сообщение самого
+                            // канала нам не подходит.
+                            continue;
+                        }
+                        dialogId = candidate;
+                        rootId = root.id;
+                        break;
+                    }
                 }
-                long dialogId = MessageObject.getDialogId(root);
-                if (dialogId == channelId) {
-                    continue;
+                if (dialogId == 0) {
+                    showNoComments();
+                    return;
                 }
-                presentFragment(ChatActivity.of(dialogId, root.id));
-                return;
-            }
-            showNoComments();
+                presentFragment(ChatActivity.of(dialogId, rootId));
+            };
+            // Ответ приходит не в главном потоке, а presentFragment оттуда роняет окно
+            // (CalledFromWrongThreadException). doOnIdle уводит и туда, и туда, где
+            // сейчас идёт анимация перехода: открывать чат из середины анимации нельзя.
+            NotificationCenter.getInstance(currentAccount).doOnIdle(runnable);
         });
     }
 
@@ -1123,6 +1142,10 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
         AndroidUtilities.cancelRunOnUIThread(progressRunnable);
         AndroidUtilities.cancelRunOnUIThread(attachRunnable);
         progressScheduled = false;
+        if (commentsRequestId != 0) {
+            ConnectionsManager.getInstance(currentAccount).cancelRequest(commentsRequestId, false);
+            commentsRequestId = 0;
+        }
         if (uiResumedHeld) {
             uiResumedHeld = false;
             controller.setUiResumed(false);
