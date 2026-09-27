@@ -7,7 +7,12 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.Typeface;
+import android.text.Layout;
+import android.text.Spannable;
+import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
+import android.text.style.StyleSpan;
 import android.view.GestureDetector;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -27,7 +32,6 @@ import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.R;
 import org.telegram.tgnet.TLRPC;
-import org.telegram.ui.Components.AvatarDrawable;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.Reactions.ReactionsLayoutInBubble;
 
@@ -74,8 +78,6 @@ public class ReelsPageView extends FrameLayout {
     private final Delegate delegate;
 
     private final ImageReceiverView posterView;
-    private final ImageReceiverView avatarView;
-    private final AvatarDrawable avatarDrawable = new AvatarDrawable();
     private final TextView channelTitle;
     private final TextView captionText;
     private final TextView metaText;
@@ -86,10 +88,12 @@ public class ReelsPageView extends FrameLayout {
     private final ReelsProgressView progressView;
     private final View topScrim;
     private final LinearLayout infoColumn;
+    private final LinearLayout bottomRow;
     private final GestureDetector gestureDetector;
 
     private MessageObject message;
     private TLRPC.Chat chat;
+    private CharSequence caption;
     private ReactionsLayoutInBubble.VisibleReaction favoriteReaction;
     private final Runnable hidePlayIcon;
 
@@ -148,16 +152,18 @@ public class ReelsPageView extends FrameLayout {
         addView(muteIcon, muteParams);
         muteIcon.setOnClickListener(v -> delegate.onAction(this, ACTION_MUTE));
 
+        // Нижний блок собран одной строкой: подпись слева, колонка кнопок справа. Так
+        // кнопки стоят вровень с подписью и растут вверх вместе с ней, а не уезжают
+        // под панель вкладок на длинных текстах.
+        bottomRow = new LinearLayout(context);
+        bottomRow.setOrientation(LinearLayout.HORIZONTAL);
+        bottomRow.setGravity(Gravity.BOTTOM);
+
         infoColumn = new LinearLayout(context);
         infoColumn.setOrientation(LinearLayout.VERTICAL);
         infoColumn.setGravity(Gravity.START);
+        bottomRow.addView(infoColumn, new LinearLayout.LayoutParams(0, LayoutHelper.WRAP_CONTENT, 1));
 
-        LinearLayout channelRow = new LinearLayout(context);
-        channelRow.setOrientation(LinearLayout.HORIZONTAL);
-        channelRow.setGravity(Gravity.CENTER_VERTICAL);
-        avatarView = new ImageReceiverView(context);
-        avatarView.getImageReceiver().setRoundRadiusForAvatar(dp(32));
-        channelRow.addView(avatarView, new LinearLayout.LayoutParams(dp(32), dp(32)));
         channelTitle = new TextView(context);
         channelTitle.setTextColor(COLOR_TEXT);
         channelTitle.setTextSize(15);
@@ -165,11 +171,9 @@ public class ReelsPageView extends FrameLayout {
         channelTitle.setMaxLines(1);
         channelTitle.setEllipsize(TextUtils.TruncateAt.END);
         channelTitle.setSingleLine(true);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT);
-        titleParams.leftMargin = dp(10);
-        channelRow.addView(channelTitle, titleParams);
-        channelRow.setOnClickListener(v -> delegate.onChannelClick(this));
-        infoColumn.addView(channelRow, new LinearLayout.LayoutParams(LayoutHelper.WRAP_CONTENT, dp(32)));
+        channelTitle.setShadowLayer(dp(3), 0, dp(1), 0x66000000);
+        channelTitle.setOnClickListener(v -> delegate.onChannelClick(this));
+        infoColumn.addView(channelTitle, new LinearLayout.LayoutParams(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         captionText = new TextView(context);
         captionText.setTextColor(COLOR_TEXT);
@@ -179,7 +183,7 @@ public class ReelsPageView extends FrameLayout {
         captionText.setShadowLayer(dp(3), 0, dp(1), 0x66000000);
         captionText.setOnClickListener(v -> toggleCaption());
         LinearLayout.LayoutParams captionParams = new LinearLayout.LayoutParams(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT);
-        captionParams.topMargin = dp(10);
+        captionParams.topMargin = dp(6);
         infoColumn.addView(captionText, captionParams);
 
         metaText = new TextView(context);
@@ -187,21 +191,31 @@ public class ReelsPageView extends FrameLayout {
         metaText.setTextSize(13);
         metaText.setMaxLines(1);
         metaText.setEllipsize(TextUtils.TruncateAt.END);
-        LinearLayout.LayoutParams metaParams = new LinearLayout.LayoutParams(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT);
+        metaText.setShadowLayer(dp(3), 0, dp(1), 0x66000000);
+        LinearLayout.LayoutParams metaParams = new LinearLayout.LayoutParams(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT);
         metaParams.topMargin = dp(6);
         infoColumn.addView(metaText, metaParams);
 
-        FrameLayout.LayoutParams infoParams = new FrameLayout.LayoutParams(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START);
-        infoParams.leftMargin = dp(14);
-        infoParams.rightMargin = dp(76);
-        infoParams.bottomMargin = dp(18);
-        addView(infoColumn, infoParams);
+        rail = new ReelsActionRail(context, new ReelsActionRail.Delegate() {
+            @Override
+            public void onAction(int action) {
+                delegate.onAction(ReelsPageView.this, action);
+            }
 
-        rail = new ReelsActionRail(context, action -> delegate.onAction(ReelsPageView.this, action));
-        FrameLayout.LayoutParams railParams = new FrameLayout.LayoutParams(dp(60), LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM | Gravity.END);
-        railParams.rightMargin = dp(6);
-        railParams.bottomMargin = dp(14);
-        addView(rail, railParams);
+            @Override
+            public void onChannelClick() {
+                delegate.onChannelClick(ReelsPageView.this);
+            }
+        });
+        LinearLayout.LayoutParams railParams = new LinearLayout.LayoutParams(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT);
+        railParams.leftMargin = dp(10);
+        bottomRow.addView(rail, railParams);
+
+        FrameLayout.LayoutParams rowParams = new FrameLayout.LayoutParams(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM);
+        rowParams.leftMargin = dp(14);
+        rowParams.rightMargin = dp(10);
+        rowParams.bottomMargin = dp(12);
+        addView(bottomRow, rowParams);
 
         progressView = new ReelsProgressView(context);
         FrameLayout.LayoutParams progressParams = new FrameLayout.LayoutParams(LayoutHelper.MATCH_PARENT, dp(3), Gravity.BOTTOM);
@@ -256,25 +270,20 @@ public class ReelsPageView extends FrameLayout {
         captionExpanded = false;
         pausedByUser = false;
         captionText.setMaxLines(CAPTION_COLLAPSED_LINES);
+        caption = null;
         playIcon.removeCallbacks(hidePlayIcon);
         playIcon.setVisibility(INVISIBLE);
         captionText.setEllipsize(TextUtils.TruncateAt.END);
 
         channelTitle.setText(chat != null && chat.title != null ? chat.title : "");
-        avatarView.setVisibility(chat != null ? VISIBLE : INVISIBLE);
-        if (chat != null) {
-            avatarDrawable.setInfo(chat);
-            avatarView.getImageReceiver().setForUserOrChat(chat, avatarDrawable, chat);
-        } else {
-            avatarView.getImageReceiver().setImageBitmap((Drawable) null);
-        }
 
         CharSequence caption = message.messageText;
+        this.caption = caption;
         if (TextUtils.isEmpty(caption)) {
             captionText.setVisibility(GONE);
         } else {
             captionText.setVisibility(VISIBLE);
-            captionText.setText(caption);
+            applyCaption();
         }
 
         StringBuilder meta = new StringBuilder();
@@ -290,7 +299,7 @@ public class ReelsPageView extends FrameLayout {
         metaText.setText(meta);
 
         loadPoster(message);
-        rail.bind(message, favoriteReaction);
+        rail.bind(chat, favoriteReaction, message);
         updateLikeCounter();
     }
 
@@ -474,13 +483,9 @@ public class ReelsPageView extends FrameLayout {
         muteParams.topMargin = dp(8) + top;
         muteIcon.setLayoutParams(muteParams);
 
-        FrameLayout.LayoutParams infoParams = (FrameLayout.LayoutParams) infoColumn.getLayoutParams();
-        infoParams.bottomMargin = dp(18) + bottom;
-        infoColumn.setLayoutParams(infoParams);
-
-        FrameLayout.LayoutParams railParams = (FrameLayout.LayoutParams) rail.getLayoutParams();
-        railParams.bottomMargin = dp(14) + bottom;
-        rail.setLayoutParams(railParams);
+        FrameLayout.LayoutParams rowParams = (FrameLayout.LayoutParams) bottomRow.getLayoutParams();
+        rowParams.bottomMargin = dp(12) + bottom;
+        bottomRow.setLayoutParams(rowParams);
 
         FrameLayout.LayoutParams progressParams = (FrameLayout.LayoutParams) progressView.getLayoutParams();
         progressParams.bottomMargin = bottom;
@@ -497,14 +502,59 @@ public class ReelsPageView extends FrameLayout {
         updateLikeCounter();
     }
 
-    private void toggleCaption() {
-        captionExpanded = !captionExpanded;
-        captionText.setMaxLines(captionExpanded ? CAPTION_EXPANDED_LINES : CAPTION_COLLAPSED_LINES);
-        if (!captionExpanded) {
-            captionText.setEllipsize(TextUtils.TruncateAt.END);
-        } else {
-            captionText.setEllipsize(null);
+    /**
+     * Подпись вместе со словом «ещё» — как в Reels. Хвост добавляется только если текст
+     * реально обрезается: на короткой подписи «ещё» только мешает. Длина проверяется
+     * после раскладки, поэтому хвост появляется на следующем кадре — незаметно.
+     */
+    private void applyCaption() {
+        if (TextUtils.isEmpty(caption)) {
+            captionText.setText(null);
+            return;
         }
+        captionText.setMaxLines(captionExpanded ? CAPTION_EXPANDED_LINES : CAPTION_COLLAPSED_LINES);
+        captionText.setEllipsize(captionExpanded ? null : TextUtils.TruncateAt.END);
+        captionText.setText(caption);
+        if (captionExpanded) {
+            return;
+        }
+        captionText.post(() -> {
+            if (!isTruncated()) {
+                return;
+            }
+            SpannableStringBuilder text = new SpannableStringBuilder(captionText.getText());
+            String suffix = LocaleController.getString(R.string.ReelsMore);
+            int start = text.length();
+            text.append(' ').append(suffix);
+            text.setSpan(new StyleSpan(Typeface.BOLD), start + 1, text.length(),
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            captionText.setText(text);
+        });
+    }
+
+    /** Подпись обрезалась — значит есть что раскрывать. */
+    private boolean isTruncated() {
+        Layout layout = captionText.getLayout();
+        if (layout == null) {
+            return false;
+        }
+        int lines = layout.getLineCount();
+        if (lines == 0) {
+            return false;
+        }
+        return lines > CAPTION_COLLAPSED_LINES || layout.getEllipsisCount(lines - 1) > 0;
+    }
+
+    private void toggleCaption() {
+        if (TextUtils.isEmpty(caption)) {
+            return;
+        }
+        if (!captionExpanded && !isTruncated()) {
+            // Подпись и так видна целиком — раскрывать нечего.
+            return;
+        }
+        captionExpanded = !captionExpanded;
+        applyCaption();
         delegate.onCaptionClick(this);
     }
 

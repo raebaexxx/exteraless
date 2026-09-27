@@ -7,83 +7,95 @@ import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.R;
+import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.Components.AvatarDrawable;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.Reactions.ReactionsLayoutInBubble;
 
 /**
- * Правая колонка действий ролика: реакция, «поделиться», «открыть в канале», «сохранить»
- * и «скрыть канал».
+ * Правая колонка ролика, разложенная как в Reels: сверху аватар канала, ниже реакция со
+ * счётчиком, «поделиться» со счётчиком пересылок, сохранение, открытие в канале, скрытие
+ * канала, а внизу диск-нота.
  *
- * <p>Кнопки рисуются вручную, а не набраны из готовых строк: в ленте они висят поверх
- * произвольного кадра, поэтому нужен свой круглый фон с белым силуэтом, который читается
- * на любой картинке. Иконки внутри — стандартные, перекрашенные в белый.
+ * <p>Кнопки рисуются вручную: висят поверх произвольного кадра, поэтому нужен свой
+ * круглый фон с белым силуэтом, который читается на любой картинке. Иконки стандартные,
+ * перекрашенные в белый.
  */
 class ReelsActionRail extends LinearLayout {
 
     interface Delegate {
         void onAction(int action);
+
+        void onChannelClick();
     }
 
-    private static final int BUTTON_SIZE_DP = 40;
-    private static final int SPACING_DP = 18;
+    private static final int BUTTON_SIZE_DP = 44;
+    private static final int AVATAR_SIZE_DP = 46;
+    private static final int DISC_SIZE_DP = 34;
+    private static final int SPACING_DP = 12;
     private static final int COUNTER_SIZE_SP = 12;
 
-    private final ActionButton reactButton;
-    private final TextView reactCounter;
+    private final ChannelAvatarButton avatarButton;
+    private final ButtonSlot reactSlot;
+    private final ButtonSlot shareSlot;
 
     ReelsActionRail(Context context, Delegate delegate) {
         super(context);
         setOrientation(VERTICAL);
         setGravity(Gravity.CENTER_HORIZONTAL);
 
-        reactButton = new ActionButton(context, ReelsPageView.ACTION_REACT, ActionButton.Style.EMOJI);
-        reactButton.setOnClickListener(v -> delegate.onAction(ReelsPageView.ACTION_REACT));
-        // Долгое нажатие открывает остальные реакции канала: в ленте их может быть
-        // несколько, а места на отдельные кнопки нет.
-        reactButton.setOnLongClickListener(v -> {
-            delegate.onAction(ReelsPageView.ACTION_REACTIONS_MENU);
-            return true;
-        });
-        reactCounter = new TextView(context);
-        reactCounter.setTextColor(0xFFFFFFFF);
-        reactCounter.setTextSize(COUNTER_SIZE_SP);
-        reactCounter.setGravity(Gravity.CENTER);
-        reactCounter.setMaxLines(1);
-        reactCounter.setVisibility(INVISIBLE);
-        addView(reactButton, new LayoutParams(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
-        addView(reactCounter, counterParams());
+        avatarButton = new ChannelAvatarButton(context, AVATAR_SIZE_DP, delegate::onChannelClick);
+        addView(avatarButton, itemParams());
 
-        addView(createIconButton(context, delegate, R.drawable.msg_share, R.string.ReelsShare, ReelsPageView.ACTION_SHARE));
-        addView(createIconButton(context, delegate, R.drawable.filled_forward, R.string.ReelsOpenInChat, ReelsPageView.ACTION_OPEN_CHAT));
-        addView(createIconButton(context, delegate, R.drawable.msg_download, R.string.ReelsSave, ReelsPageView.ACTION_SAVE));
-        addView(createIconButton(context, delegate, R.drawable.msg_archive_hide, R.string.ReelsHideChannel, ReelsPageView.ACTION_HIDE_CHANNEL));
+        reactSlot = addButton(context, delegate, null, ReelsPageView.ACTION_REACT, ActionButton.Style.EMOJI);
+        shareSlot = addButton(context, delegate, R.drawable.msg_share, ReelsPageView.ACTION_SHARE, ActionButton.Style.ICON);
+        addButton(context, delegate, R.drawable.msg_download, ReelsPageView.ACTION_SAVE, ActionButton.Style.ICON);
+        addButton(context, delegate, R.drawable.filled_forward, ReelsPageView.ACTION_OPEN_CHAT, ActionButton.Style.ICON);
+        addButton(context, delegate, R.drawable.msg_archive_hide, ReelsPageView.ACTION_HIDE_CHANNEL, ActionButton.Style.ICON);
+        addView(new TrackDisc(context), itemParams());
     }
 
-    private static ActionButton createIconButton(Context context, Delegate delegate, int iconRes, int descriptionRes, int action) {
-        ActionButton button = new ActionButton(context, action, ActionButton.Style.ICON);
-        button.setIcon(iconRes);
-        button.setContentDescription(LocaleController.getString(descriptionRes));
-        button.setOnClickListener(v -> delegate.onAction(action));
-        return button;
+    private ButtonSlot addButton(Context context, Delegate delegate, Integer iconRes,
+                                int action, ActionButton.Style style) {
+        ButtonSlot slot = new ButtonSlot(context, action, style);
+        if (iconRes != null) {
+            slot.button.setIcon(iconRes);
+        }
+        CharSequence description = description(action);
+        if (description != null) {
+            slot.button.setContentDescription(description);
+        }
+        slot.button.setOnClickListener(v -> delegate.onAction(action));
+        addView(slot, itemParams());
+        return slot;
     }
 
-    private LayoutParams counterParams() {
-        LayoutParams params = new LayoutParams(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT);
-        params.topMargin = dp(2);
-        return params;
-    }
-
-    private int dp(float value) {
-        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    private static CharSequence description(int action) {
+        switch (action) {
+            case ReelsPageView.ACTION_REACT:
+                return LocaleController.getString(R.string.ReelsReact);
+            case ReelsPageView.ACTION_SHARE:
+                return LocaleController.getString(R.string.ReelsShare);
+            case ReelsPageView.ACTION_SAVE:
+                return LocaleController.getString(R.string.ReelsSave);
+            case ReelsPageView.ACTION_OPEN_CHAT:
+                return LocaleController.getString(R.string.ReelsOpenInChat);
+            case ReelsPageView.ACTION_HIDE_CHANNEL:
+                return LocaleController.getString(R.string.ReelsHideChannel);
+            default:
+                return null;
+        }
     }
 
     private LayoutParams itemParams() {
@@ -92,27 +104,148 @@ class ReelsActionRail extends LinearLayout {
         return params;
     }
 
-    void bind(MessageObject message, ReactionsLayoutInBubble.VisibleReaction favoriteReaction) {
+    private int dp(float value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    void bind(TLRPC.Chat chat, ReactionsLayoutInBubble.VisibleReaction favoriteReaction, MessageObject message) {
+        avatarButton.setChat(chat);
         boolean hasReaction = favoriteReaction != null;
-        reactButton.setEmoji(hasReaction && favoriteReaction.emojicon != null ? favoriteReaction.emojicon : "👍");
-        reactButton.setVisibility(hasReaction ? VISIBLE : GONE);
-        reactCounter.setVisibility(hasReaction && reactCounter.getText().length() > 0 ? VISIBLE : INVISIBLE);
+        reactSlot.button.setEmoji(hasReaction && favoriteReaction.emojicon != null ? favoriteReaction.emojicon : "👍");
+        reactSlot.button.setVisibility(hasReaction ? VISIBLE : INVISIBLE);
+        reactSlot.setCounterVisible(hasReaction);
+
+        int forwards = message != null && message.messageOwner != null ? message.messageOwner.forwards : 0;
+        shareSlot.setCount(forwards);
     }
 
     void setLikeState(boolean chosen, int count) {
-        reactButton.setChosen(chosen);
-        if (count > 0) {
-            reactCounter.setText(LocaleController.formatNumber(count, ','));
-            reactCounter.setVisibility(VISIBLE);
-        } else {
-            reactCounter.setText(null);
-            reactCounter.setVisibility(INVISIBLE);
+        reactSlot.button.setChosen(chosen);
+        reactSlot.setCount(count);
+    }
+
+    /** Кнопка вместе со своим счётчиком: счётчики соседей не должны прыгать по высоте. */
+    private class ButtonSlot extends LinearLayout {
+        final ActionButton button;
+        private final TextView counter;
+
+        ButtonSlot(Context context, int action, ActionButton.Style style) {
+            super(context);
+            setOrientation(VERTICAL);
+            setGravity(Gravity.CENTER_HORIZONTAL);
+            button = new ActionButton(context, action, style);
+            addView(button, new LayoutParams(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
+            counter = new TextView(context);
+            counter.setTextColor(0xFFFFFFFF);
+            counter.setTextSize(COUNTER_SIZE_SP);
+            counter.setGravity(Gravity.CENTER);
+            counter.setMaxLines(1);
+            counter.setShadowLayer(2, 0, 1, 0x66000000);
+            counter.setVisibility(INVISIBLE);
+            LayoutParams counterParams = new LayoutParams(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT);
+            counterParams.topMargin = dp(1);
+            addView(counter, counterParams);
+        }
+
+        void setCount(int count) {
+            if (count > 0) {
+                counter.setText(LocaleController.formatNumber(count, ','));
+                counter.setVisibility(VISIBLE);
+            } else {
+                counter.setText(null);
+                counter.setVisibility(INVISIBLE);
+            }
+        }
+
+        void setCounterVisible(boolean visible) {
+            counter.setVisibility(visible && counter.getText() != null ? VISIBLE : INVISIBLE);
+        }
+    }
+
+    /** Аватар канала во главе колонки: открывает канал, как «подписаться» в Reels. */
+    private static class ChannelAvatarButton extends FrameLayout {
+        private final ImageReceiverView avatar;
+        private final TextView plus;
+
+        ChannelAvatarButton(Context context, int sizeDp, Runnable onClick) {
+            super(context);
+            float density = getResources().getDisplayMetrics().density;
+            int size = (int) (sizeDp * density + 0.5f);
+            avatar = new ImageReceiverView(context);
+            avatar.getImageReceiver().setRoundRadiusForAvatar(size);
+            addView(avatar, new LayoutParams(size, size));
+
+            GradientDrawable badge = new GradientDrawable();
+            badge.setShape(GradientDrawable.OVAL);
+            badge.setColor(0xFFFF2D55);
+            plus = new TextView(context);
+            plus.setText("+");
+            plus.setTextColor(Color.WHITE);
+            plus.setTextSize(14);
+            plus.setGravity(Gravity.CENTER);
+            plus.setBackground(badge);
+            LayoutParams plusParams = new LayoutParams((int) (sizeDp * 0.46 * density),
+                    (int) (sizeDp * 0.46 * density), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+            addView(plus, plusParams);
+
+            setContentDescription(LocaleController.getString(R.string.ReelsOpenInChat));
+            setOnClickListener(v -> onClick.run());
+            setClickable(true);
+        }
+
+        void setChat(TLRPC.Chat chat) {
+            if (chat == null) {
+                avatar.getImageReceiver().setImageBitmap((Drawable) null);
+                plus.setVisibility(GONE);
+                return;
+            }
+            AvatarDrawable avatarDrawable = new AvatarDrawable();
+            avatarDrawable.setInfo(chat);
+            avatar.getImageReceiver().setForUserOrChat(chat, avatarDrawable, chat);
+            plus.setVisibility(VISIBLE);
+        }
+    }
+
+    /** Диск с нотой внизу колонки — визуальная примета Reels. */
+    private static class TrackDisc extends View {
+        private final Paint discPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint ringPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint notePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        TrackDisc(Context context) {
+            super(context);
+            discPaint.setColor(0xFF1C1C1E);
+            ringPaint.setColor(0x33FFFFFF);
+            ringPaint.setStyle(Paint.Style.STROKE);
+            notePaint.setColor(Color.WHITE);
+            notePaint.setTextAlign(Paint.Align.CENTER);
+            notePaint.setTextSize(dp(DISC_SIZE_DP) * 0.46f);
+        }
+
+        private int dp(float value) {
+            return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+        }
+
+        @Override
+        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+            int size = dp(DISC_SIZE_DP);
+            setMeasuredDimension(size, size);
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            int cx = getWidth() / 2;
+            int cy = getHeight() / 2;
+            float radius = Math.min(cx, cy);
+            canvas.drawCircle(cx, cy, radius, discPaint);
+            canvas.drawCircle(cx, cy, radius * 0.86f, ringPaint);
+            Paint.FontMetrics metrics = notePaint.getFontMetrics();
+            canvas.drawText("♪", cx, cy - (metrics.ascent + metrics.descent) / 2f, notePaint);
         }
     }
 
     /** Круглая кнопка: иконка из ресурсов либо эмодзи реакции. */
     static class ActionButton extends View {
-
         enum Style {
             ICON,
             EMOJI
@@ -134,9 +267,17 @@ class ReelsActionRail extends LinearLayout {
             this.style = style;
             textPaint.setColor(Color.WHITE);
             textPaint.setTextAlign(Paint.Align.CENTER);
-            textPaint.setTextSize(dp(BUTTON_SIZE_DP) * 0.48f);
+            textPaint.setTextSize(dp(BUTTON_SIZE_DP) * 0.5f);
             textPaint.setFakeBoldText(true);
             circlePaint.setColor(0x59000000);
+            setBackground(circleBackground());
+        }
+
+        private static Drawable circleBackground() {
+            GradientDrawable drawable = new GradientDrawable();
+            drawable.setShape(GradientDrawable.OVAL);
+            drawable.setColor(0x59000000);
+            return drawable;
         }
 
         private int dp(float value) {
@@ -149,7 +290,7 @@ class ReelsActionRail extends LinearLayout {
         }
 
         void setEmoji(String emoji) {
-            this.emoji = emoji == null || TextUtils.isEmpty(emoji) ? "👍" : emoji;
+            this.emoji = TextUtils.isEmpty(emoji) ? "👍" : emoji;
             invalidate();
         }
 
@@ -168,10 +309,10 @@ class ReelsActionRail extends LinearLayout {
         protected void onDraw(Canvas canvas) {
             int cx = getWidth() / 2;
             int cy = getHeight() / 2;
-            float radius = Math.min(cx, cy) * 0.84f;
+            float radius = Math.min(cx, cy) * 0.86f;
             canvas.drawCircle(cx, cy, radius, circlePaint);
             if (style == Style.EMOJI) {
-                textPaint.setAlpha(chosen ? 255 : 165);
+                textPaint.setAlpha(chosen ? 255 : 170);
                 Paint.FontMetrics metrics = textPaint.getFontMetrics();
                 float baseline = cy - (metrics.ascent + metrics.descent) / 2f;
                 canvas.drawText(emoji, cx, baseline, textPaint);
@@ -190,11 +331,11 @@ class ReelsActionRail extends LinearLayout {
             if (icon == null) {
                 return;
             }
-            int size = (int) (radius * 1.9f);
+            int size = (int) (radius * 1.7f);
             int left = cx - size / 2;
             int top = cy - size / 2;
             icon.setBounds(left, top, left + size, top + size);
-            icon.setAlpha(chosen ? 255 : 225);
+            icon.setAlpha(225);
             icon.draw(canvas);
         }
     }

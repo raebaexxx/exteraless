@@ -37,4 +37,6 @@
     <string name="ReelsBottomTab">Show as a bottom tab</string>
     <string name="ReelsBottomTabInfo">Show clips in the bottom navigation right after Chats.</string>
     <string name="HideReelsTab">Hide clips tab</string>
+    <string name="ReelsMore">more</string>
+    <string name="ReelsLess">less</string>
 </resources>

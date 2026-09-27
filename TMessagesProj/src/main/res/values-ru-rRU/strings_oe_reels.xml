@@ -37,4 +37,6 @@
     <string name="ReelsBottomTab">Показывать нижней вкладкой</string>
     <string name="ReelsBottomTabInfo">Показывать «Клипы» в нижней панели сразу после «Чатов».</string>
     <string name="HideReelsTab">Скрыть вкладку «Клипы»</string>
+    <string name="ReelsMore">ещё</string>
+    <string name="ReelsLess">свернуть</string>
 </resources>
