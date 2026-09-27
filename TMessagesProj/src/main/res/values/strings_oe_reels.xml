@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="Reels">Clips</string>
+    <string name="ReelsSettings">Clips Settings</string>
+    <string name="ReelsSettingsInfo">Pick the channels the vertical feed takes videos from. Pick one like @memachh and it shows up here.</string>
+    <string name="ReelsShownChannels">Shown in clips</string>
+    <string name="ReelsHiddenChannels">Hidden</string>
+    <string name="ReelsChannelsInfo">Uncheck a channel to remove its posts from the feed. New channels are not added by themselves.</string>
+    <string name="ReelsAutoplay">Autoplay</string>
+    <string name="ReelsAutoplayInfo">Play the reel as soon as it appears. Off means a tap is needed.</string>
+    <string name="ReelsStartMuted">Start without sound</string>
+    <string name="ReelsStartMutedInfo">Muted on every launch. Turn the sound on with the speaker button.</string>
+    <string name="ReelsShowPhotos">Show photos</string>
+    <string name="ReelsShowPhotosInfo">Include photos from the chosen channels along with videos and GIFs.</string>
+    <string name="ReelsMarkSeen">Mark watched posts as read</string>
+    <string name="ReelsMarkSeenInfo">Mark a post as read once you have watched it in the feed.</string>
+    <string name="ReelsIncludeArchived">Include channels from the archive</string>
+    <string name="ReelsIncludeArchivedInfo">Also take channels from your archived chats.</string>
+    <string name="ReelsMute">Sound off</string>
+    <string name="ReelsUnmute">Sound on</string>
+    <string name="ReelsReact">React</string>
+    <string name="ReelsOpenInChat">Open in channel</string>
+    <string name="ReelsShare">Share</string>
+    <string name="ReelsSave">Save to gallery</string>
+    <string name="ReelsHideChannel">Hide channel</string>
+    <string name="ReelsChooseChannels">Choose channels</string>
+    <string name="ReelsNoChannelsTitle">No channels picked yet</string>
+    <string name="ReelsNoChannelsInfo">Pick the channels to take clips from. Subscribe to a channel with memes first, then mark it here.</string>
+    <string name="ReelsNoPostsTitle">No clips yet</string>
+    <string name="ReelsNoPostsInfo">The picked channels have no videos or GIFs in the local copy yet. Open the channels once, or try later.</string>
+    <string name="ReelsChannelHidden">**%1$s** hidden from clips</string>
+    <string name="ReelsSaved">Saved to gallery</string>
+    <string name="ReelsViews_one">view</string>
+    <string name="ReelsViews_few">views</string>
+    <string name="ReelsViews_many">views</string>
+    <string name="ReelsViews_other">views</string>
+    <string name="ReelsBottomTab">Show as a bottom tab</string>
+    <string name="ReelsBottomTabInfo">Show clips in the bottom navigation right after Chats.</string>
+    <string name="HideReelsTab">Hide clips tab</string>
+</resources>

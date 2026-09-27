@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="Reels">Клипы</string>
+    <string name="ReelsSettings">Настройки «Клипов»</string>
+    <string name="ReelsSettingsInfo">Выберите каналы, из которых вертикальная лента берёт видео. Подпишитесь на канал с мемами, например @memachh, и отметьте его здесь.</string>
+    <string name="ReelsShownChannels">Показываются в «Клипах»</string>
+    <string name="ReelsHiddenChannels">Скрыты</string>
+    <string name="ReelsChannelsInfo">Снимите галочку с канала, чтобы убрать его посты из ленты. Новые каналы сами не добавляются.</string>
+    <string name="ReelsAutoplay">Автозапуск</string>
+    <string name="ReelsAutoplayInfo">Играть ролик сразу, как только он появился. Выключено — нужно нажать.</string>
+    <string name="ReelsStartMuted">Начинать без звука</string>
+    <string name="ReelsStartMutedInfo">Без звука при каждом запуске. Включить звук можно кнопкой динамика.</string>
+    <string name="ReelsShowPhotos">Показывать фото</string>
+    <string name="ReelsShowPhotosInfo">Добавить к видео и GIF ещё и фотографии из выбранных каналов.</string>
+    <string name="ReelsMarkSeen">Отмечать просмотренные посты</string>
+    <string name="ReelsMarkSeenInfo">Помечать пост прочитанным, как только вы досмотрели его в ленте.</string>
+    <string name="ReelsIncludeArchived">Включать каналы из архива</string>
+    <string name="ReelsIncludeArchivedInfo">Брать каналы и из архивных чатов.</string>
+    <string name="ReelsMute">Звук выключен</string>
+    <string name="ReelsUnmute">Звук включён</string>
+    <string name="ReelsReact">Реакция</string>
+    <string name="ReelsOpenInChat">Открыть в канале</string>
+    <string name="ReelsShare">Поделиться</string>
+    <string name="ReelsSave">Сохранить в галерею</string>
+    <string name="ReelsHideChannel">Скрыть канал</string>
+    <string name="ReelsChooseChannels">Выбрать каналы</string>
+    <string name="ReelsNoChannelsTitle">Каналы ещё не выбраны</string>
+    <string name="ReelsNoChannelsInfo">Отметьте каналы, из которых брать ролики. Сначала подпишитесь на канал с мемами, потом отметьте его здесь.</string>
+    <string name="ReelsNoPostsTitle">Роликов пока нет</string>
+    <string name="ReelsNoPostsInfo">В выбранных каналах в локальной копии ещё нет видео и GIF. Откройте каналы один раз или попробуйте позже.</string>
+    <string name="ReelsChannelHidden">Канал **%1$s** убран из «Клипов»</string>
+    <string name="ReelsSaved">Сохранено в галерею</string>
+    <string name="ReelsViews_one">просмотр</string>
+    <string name="ReelsViews_few">просмотра</string>
+    <string name="ReelsViews_many">просмотров</string>
+    <string name="ReelsViews_other">просмотров</string>
+    <string name="ReelsBottomTab">Показывать нижней вкладкой</string>
+    <string name="ReelsBottomTabInfo">Показывать «Клипы» в нижней панели сразу после «Чатов».</string>
+    <string name="HideReelsTab">Скрыть вкладку «Клипы»</string>
+</resources>
