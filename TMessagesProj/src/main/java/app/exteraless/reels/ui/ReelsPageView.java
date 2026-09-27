@@ -4,7 +4,6 @@ import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
@@ -107,8 +106,8 @@ public class ReelsPageView extends FrameLayout {
         this.delegate = delegate;
         touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
 
-        setBackgroundColor(Color.BLACK);
-
+        // Фона у страницы нет намеренно: под ней лежит слой с видео, и непрозрачная
+        // страница закрыла бы ролик вместе с подписями.
         posterView = new ImageReceiverView(context);
         addView(posterView, new FrameLayout.LayoutParams(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
@@ -138,6 +137,7 @@ public class ReelsPageView extends FrameLayout {
         addView(bufferingIndicator, bufferingParams);
 
         muteIcon = new ImageView(context);
+        muteIcon.setImageResource(R.drawable.filled_profile_mute_24);
         muteIcon.setColorFilter(COLOR_TEXT);
         muteIcon.setPadding(dp(9), dp(9), dp(9), dp(9));
         muteIcon.setBackground(roundBackground(0x33000000, dp(18)));
@@ -324,7 +324,9 @@ public class ReelsPageView extends FrameLayout {
             receiver.setImageBitmap((Drawable) null);
             return;
         }
-        TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(document.thumbs, 200);
+        // 200px на экране 1080p превращается в кашу, пока ролик не начал играть.
+        TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(document.thumbs,
+                Math.max(512, AndroidUtilities.getPhotoSize()));
         receiver.setImage(null, null, ImageLocation.getForDocument(thumb, document), "b", null,
                 document.size, null, message, 0);
     }

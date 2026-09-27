@@ -195,16 +195,19 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
         listView.setAdapter(adapter);
         listView.setItemViewCacheSize(2);
         listView.setRecycledViewPool(new RecyclerView.RecycledViewPool());
+
+        // Порядок важен: слой с видео добавляется первым, иначе он лёг бы поверх
+        // страниц и закрыл подписи вместе с кнопками. Страницы прозрачные, поэтому
+        // сквозь них видно ролик, а их постеры и оверлеи рисуются поверх видео.
+        playerLayer = new FrameLayout(context);
+        rootLayout.addView(playerLayer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        textureView = new TextureView(context);
+        playerLayer.addView(textureView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+
         rootLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         snapHelper = new PagerSnapHelper();
         snapHelper.attachToRecyclerView(listView);
-
-        playerLayer = new FrameLayout(context);
-        playerLayer.setVisibility(View.INVISIBLE);
-        rootLayout.addView(playerLayer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        textureView = new TextureView(context);
-        playerLayer.addView(textureView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         settingsButton = new ImageView(context);
         settingsButton.setImageResource(R.drawable.msg_settings);
@@ -438,19 +441,13 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
             // Автозапуск выключен: показываем постер и гасим прошлый ролик, иначе он
             // останется висеть поверх картинки.
             player.detach();
-            playerLayer.setVisibility(View.INVISIBLE);
             page.showMedia();
             return;
         }
         page.setMuted(player.isMuted());
-        boolean attached = player.attach(message, textureView, playerLayer);
-        if (attached) {
-            page.hideMedia();
-            playerLayer.setVisibility(View.VISIBLE);
-        } else {
-            // Фотографии и GIF без документа: оставляем постер, но он уже загружен.
+        if (!player.attach(message, textureView, playerLayer)) {
+            // Фотография или GIF без документа: ролика не будет, оставляем постер.
             page.showMedia();
-            playerLayer.setVisibility(View.INVISIBLE);
         }
         if (!page.isPausedByUser()) {
             player.play();
@@ -491,8 +488,11 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
 
     @Override
     public void onRenderedFirstFrame() {
-        if (playerLayer != null) {
-            playerLayer.setVisibility(View.VISIBLE);
+        // Прячем постер только когда ролик действительно пошёл: до этого он
+        // единственное, что видно на странице.
+        ReelsPageView page = findPageView(currentPage);
+        if (page != null && player != null && player.isPlayingMessage(page.getMessage())) {
+            page.hideMedia();
         }
     }
 
@@ -510,9 +510,6 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
         if (page != null) {
             page.showMedia();
             page.showBuffering(false);
-        }
-        if (playerLayer != null) {
-            playerLayer.setVisibility(View.INVISIBLE);
         }
         // Битый ролик не должен держать ленту: уходим на следующий, иначе пользователь
         // застрянет на одном кадре без объяснений.
@@ -974,8 +971,9 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
         if (player != null) {
             player.detach();
         }
-        if (playerLayer != null) {
-            playerLayer.setVisibility(View.INVISIBLE);
+        ReelsPageView page = findPageView(currentPage);
+        if (page != null) {
+            page.showMedia();
         }
         super.onBecomeFullyHidden();
     }

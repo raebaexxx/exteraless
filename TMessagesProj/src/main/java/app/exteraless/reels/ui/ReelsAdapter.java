@@ -1,12 +1,14 @@
 package app.exteraless.reels.ui;
 
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.MessageObject;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.Reactions.ReactionsLayoutInBubble;
 
 import java.util.ArrayList;
@@ -75,7 +77,12 @@ class ReelsAdapter extends RecyclerView.Adapter<ReelsAdapter.PageHolder> {
     @NonNull
     @Override
     public PageHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        return new PageHolder(new ReelsPageView(parent.getContext(), delegate));
+        ReelsPageView page = new ReelsPageView(parent.getContext(), delegate);
+        // Страница обязана быть во весь экран. Если задать параметры неявно,
+        // LinearLayoutManager подставит WRAP_CONTENT, страница схлопнется до
+        // высоты подписей, и в пайджере их окажется сразу три.
+        page.setLayoutParams(new FrameLayout.LayoutParams(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        return new PageHolder(page);
     }
 
     @Override
