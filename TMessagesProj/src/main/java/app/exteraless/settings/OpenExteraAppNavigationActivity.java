@@ -64,6 +64,7 @@ public class OpenExteraAppNavigationActivity extends BaseFragment {
     private static final int ID_HIDE_CONTACTS_TAB = -108;
     private static final int ID_HIDE_CALLS_TAB = -109;
     private static final int ID_HIDE_PROFILE_TAB = -110;
+    private static final int ID_REELS_TAB = -111;
 
     /** Кнопка «добавить разделитель». */
     private static final int ID_ADD_DIVIDER = -200;
@@ -161,6 +162,11 @@ public class OpenExteraAppNavigationActivity extends BaseFragment {
         if (hasBottomTabs()) {
             items.add(UItem.asCheck(ID_HIDE_TAB_TITLES, getString(R.string.MainTabsHideTitles))
                     .setChecked(NaConfig.INSTANCE.getMainTabsHideTitles().Bool()));
+            // «Клипы» живут среди переключателей вкладок, а не внутри своих настроек:
+            // пока вкладки нет, до её экрана не добраться.
+            items.add(UItem.asCheck(ID_REELS_TAB, getString(R.string.Reels),
+                    getString(R.string.ReelsBottomTabInfo), true)
+                    .setChecked(AppearanceConfig.showReelsTab()));
             items.add(UItem.asCheck(ID_HIDE_CONTACTS_TAB, getString(R.string.MainTabsHideContacts))
                     .setChecked(NaConfig.INSTANCE.getMainTabsHideContacts().Bool()));
             items.add(UItem.asCheck(ID_HIDE_CALLS_TAB, getString(R.string.MainTabsHideCallsSettings))
@@ -315,6 +321,16 @@ public class OpenExteraAppNavigationActivity extends BaseFragment {
         if (id == ID_IMMERSIVE) {
             AppearanceConfig.immersiveDrawerAnimation.setConfigBool(!AppearanceConfig.immersiveDrawerAnimation());
             update();
+            return;
+        }
+        if (id == ID_REELS_TAB) {
+            AppearanceConfig.showReelsTab.toggleConfigBool();
+            update();
+            // Перестроение вкладок пересчитывает их позиции: счётчик вкладки меняет слот.
+            getNotificationCenter().postNotificationName(NotificationCenter.reelsTabVisibleToggled);
+            if (getParentLayout() != null) {
+                getParentLayout().rebuildFragments(0);
+            }
             return;
         }
         if (id == ID_HIDE_TAB_TITLES || id == ID_HIDE_CONTACTS_TAB
