@@ -1,6 +1,5 @@
 package app.exteraless.reels.ui;
 
-import android.animation.Animator;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.content.Context;
@@ -60,7 +59,6 @@ public class ReelsPageView extends FrameLayout {
 
     private static final int COLOR_TEXT = 0xFFFFFFFF;
     private static final int COLOR_TEXT_MUTED = 0x99FFFFFF;
-    private static final int COLOR_ICON = 0xFFFFFFFF;
 
     public interface Delegate {
         void onSingleTap(ReelsPageView page);
@@ -74,7 +72,6 @@ public class ReelsPageView extends FrameLayout {
         void onCaptionClick(ReelsPageView page);
     }
 
-    private final int currentAccount;
     private final Delegate delegate;
 
     private final ImageReceiverView posterView;
@@ -105,9 +102,8 @@ public class ReelsPageView extends FrameLayout {
     private float downY;
     private final int touchSlop;
 
-    public ReelsPageView(Context context, int currentAccount, Delegate delegate) {
+    public ReelsPageView(Context context, Delegate delegate) {
         super(context);
-        this.currentAccount = currentAccount;
         this.delegate = delegate;
         touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
 
@@ -123,7 +119,7 @@ public class ReelsPageView extends FrameLayout {
 
         playIcon = new ImageView(context);
         playIcon.setImageResource(R.drawable.ic_action_play);
-        playIcon.setColorFilter(COLOR_ICON);
+        playIcon.setColorFilter(COLOR_TEXT);
         playIcon.setAlpha(0f);
         playIcon.setVisibility(INVISIBLE);
         addView(playIcon, new FrameLayout.LayoutParams(dp(72), dp(72), Gravity.CENTER));
@@ -142,7 +138,7 @@ public class ReelsPageView extends FrameLayout {
         addView(bufferingIndicator, bufferingParams);
 
         muteIcon = new ImageView(context);
-        muteIcon.setColorFilter(COLOR_ICON);
+        muteIcon.setColorFilter(COLOR_TEXT);
         muteIcon.setPadding(dp(9), dp(9), dp(9), dp(9));
         muteIcon.setBackground(roundBackground(0x33000000, dp(18)));
         muteIcon.setContentDescription(LocaleController.getString(R.string.ReelsMute));

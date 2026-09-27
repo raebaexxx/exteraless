@@ -8,7 +8,6 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.TextureView;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -192,7 +191,7 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
         if (listView.getItemAnimator() != null) {
             listView.setItemAnimator(null);
         }
-        adapter = new ReelsAdapter(currentAccount, this);
+        adapter = new ReelsAdapter(this);
         listView.setAdapter(adapter);
         listView.setItemViewCacheSize(2);
         listView.setRecycledViewPool(new RecyclerView.RecycledViewPool());

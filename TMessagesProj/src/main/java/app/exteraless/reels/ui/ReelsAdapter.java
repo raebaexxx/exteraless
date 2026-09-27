@@ -23,13 +23,11 @@ import java.util.HashMap;
 class ReelsAdapter extends RecyclerView.Adapter<ReelsAdapter.PageHolder> {
 
     private final ReelsPageView.Delegate delegate;
-    private final int currentAccount;
     private final ArrayList<MessageObject> messages;
     private final HashMap<Long, TLRPC.Chat> chats = new HashMap<>();
     private final HashMap<Long, ReactionsLayoutInBubble.VisibleReaction> reactions = new HashMap<>();
 
-    ReelsAdapter(int currentAccount, ReelsPageView.Delegate delegate) {
-        this.currentAccount = currentAccount;
+    ReelsAdapter(ReelsPageView.Delegate delegate) {
         this.delegate = delegate;
         this.messages = new ArrayList<>();
         setHasStableIds(true);
@@ -77,7 +75,7 @@ class ReelsAdapter extends RecyclerView.Adapter<ReelsAdapter.PageHolder> {
     @NonNull
     @Override
     public PageHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        return new PageHolder(new ReelsPageView(parent.getContext(), currentAccount, delegate));
+        return new PageHolder(new ReelsPageView(parent.getContext(), delegate));
     }
 
     @Override
