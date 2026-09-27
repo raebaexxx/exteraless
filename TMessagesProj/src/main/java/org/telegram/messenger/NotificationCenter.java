@@ -397,6 +397,14 @@ public class NotificationCenter {
 
     public static final int feedNeedReload = totalEvents++;
     public static final int feedTabVisibleToggled = totalEvents++;
+
+    /** Состав «Клипов» изменился: пересобрать окно роликов. */
+    public static final int reelsNeedReload = totalEvents++;
+    /** Список роликов обновился: в аргументах ArrayList добавленных MessageObject. */
+    public static final int reelsDataUpdated = totalEvents++;
+    /** Вкладка «Клипы» показана или скрыта. */
+    public static final int reelsTabVisibleToggled = totalEvents++;
+
     public static final int pillStackLayoutChanged = totalEvents++;
 
     private final SparseArray<ArrayList<NotificationCenterDelegate>> observers = new SparseArray<>();
