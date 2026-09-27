@@ -715,7 +715,7 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
     }
 
     private void saveToGallery(MessageObject message) {
-        if (message == null) {
+        if (message == null || getParentActivity() == null) {
             return;
         }
         ArrayList<MessageObject> messages = new ArrayList<>();
@@ -777,6 +777,10 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
 
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
+        if (adapter == null || listView == null) {
+            // Экран создан, но вьюхи ещё нет: окно перечитается в onResume.
+            return;
+        }
         if (id == NotificationCenter.reelsDataUpdated) {
             boolean toStart = args.length > 1 && Boolean.TRUE.equals(args[1]);
             if (toStart) {

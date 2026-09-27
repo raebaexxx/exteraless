@@ -95,7 +95,10 @@ public class ReelsPageView extends FrameLayout {
     private MessageObject message;
     private TLRPC.Chat chat;
     private ReactionsLayoutInBubble.VisibleReaction favoriteReaction;
+    private final Runnable hidePlayIcon;
+
     private boolean captionExpanded;
+    private boolean gestureStolen;
     private boolean pausedByUser;
     private boolean active;
     private float downX;
@@ -124,6 +127,12 @@ public class ReelsPageView extends FrameLayout {
         playIcon.setAlpha(0f);
         playIcon.setVisibility(INVISIBLE);
         addView(playIcon, new FrameLayout.LayoutParams(dp(72), dp(72), Gravity.CENTER));
+        hidePlayIcon = () -> {
+            if (playIcon.getVisibility() == VISIBLE) {
+                playIcon.animate().alpha(0f).setDuration(200).withEndAction(
+                        () -> playIcon.setVisibility(INVISIBLE)).start();
+            }
+        };
 
         bufferingIndicator = new ProgressBar(context);
         bufferingIndicator.setIndeterminate(true);
@@ -251,10 +260,18 @@ public class ReelsPageView extends FrameLayout {
         captionExpanded = false;
         pausedByUser = false;
         captionText.setMaxLines(CAPTION_COLLAPSED_LINES);
+        playIcon.removeCallbacks(hidePlayIcon);
+        playIcon.setVisibility(INVISIBLE);
+        captionText.setEllipsize(TextUtils.TruncateAt.END);
 
-        channelTitle.setText(chat != null ? chat.title : "");
-        avatarDrawable.setInfo(chat);
-        avatarView.getImageReceiver().setForUserOrChat(chat, avatarDrawable, chat);
+        channelTitle.setText(chat != null && chat.title != null ? chat.title : "");
+        avatarView.setVisibility(chat != null ? VISIBLE : INVISIBLE);
+        if (chat != null) {
+            avatarDrawable.setInfo(chat);
+            avatarView.getImageReceiver().setForUserOrChat(chat, avatarDrawable, chat);
+        } else {
+            avatarView.getImageReceiver().setImageBitmap((Drawable) null);
+        }
 
         CharSequence caption = message.messageText;
         if (TextUtils.isEmpty(caption)) {
@@ -387,6 +404,11 @@ public class ReelsPageView extends FrameLayout {
         }
         this.active = active;
         progressView.setVisibility(active ? VISIBLE : INVISIBLE);
+        if (!active) {
+            playIcon.removeCallbacks(hidePlayIcon);
+            playIcon.setVisibility(INVISIBLE);
+            bufferingIndicator.setVisibility(INVISIBLE);
+        }
         if (active) {
             showMedia();
         }
@@ -428,12 +450,8 @@ public class ReelsPageView extends FrameLayout {
                 ObjectAnimator.ofFloat(playIcon, View.SCALE_Y, 0.8f, 1f));
         set.setDuration(160);
         set.start();
-        playIcon.postDelayed(() -> {
-            if (playIcon.getVisibility() == VISIBLE) {
-                playIcon.animate().alpha(0f).setDuration(200).withEndAction(
-                        () -> playIcon.setVisibility(INVISIBLE)).start();
-            }
-        }, 700);
+        playIcon.removeCallbacks(hidePlayIcon);
+        playIcon.postDelayed(hidePlayIcon, 700);
     }
 
     public void setMuted(boolean muted) {
@@ -497,25 +515,25 @@ public class ReelsPageView extends FrameLayout {
             case MotionEvent.ACTION_DOWN:
                 downX = event.getX();
                 downY = event.getY();
+                gestureStolen = false;
                 return true;
             case MotionEvent.ACTION_UP:
+                if (!gestureStolen) {
+                    performClick();
+                }
+                return true;
             case MotionEvent.ACTION_CANCEL:
-                performClick();
                 return true;
             case MotionEvent.ACTION_MOVE:
                 // Сдвиг — не наше дело: список листает по вертикали, панель вкладок — по
                 // горизонтали. Отпускаем жест, иначе лента не прокрутится.
                 if (Math.abs(event.getX() - downX) > touchSlop || Math.abs(event.getY() - downY) > touchSlop) {
+                    gestureStolen = true;
                     return false;
                 }
                 return true;
         }
         return super.onTouchEvent(event);
-    }
-
-    @Override
-    public boolean performClick() {
-        return super.performClick();
     }
 
     @Override
