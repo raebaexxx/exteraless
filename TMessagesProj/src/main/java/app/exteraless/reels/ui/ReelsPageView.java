@@ -481,6 +481,10 @@ public class ReelsPageView extends FrameLayout {
         FrameLayout.LayoutParams railParams = (FrameLayout.LayoutParams) rail.getLayoutParams();
         railParams.bottomMargin = dp(14) + bottom;
         rail.setLayoutParams(railParams);
+
+        FrameLayout.LayoutParams progressParams = (FrameLayout.LayoutParams) progressView.getLayoutParams();
+        progressParams.bottomMargin = bottom;
+        progressView.setLayoutParams(progressParams);
     }
 
     public void setProgress(float progress, float buffered) {

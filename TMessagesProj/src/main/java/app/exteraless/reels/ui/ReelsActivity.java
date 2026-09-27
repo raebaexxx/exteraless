@@ -38,6 +38,7 @@ import org.telegram.ui.Components.ShareAlert;
 import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceRenderNode;
 import org.telegram.ui.LaunchActivity;
 import org.telegram.ui.MainTabsActivity;
+import org.telegram.ui.MainTabsLayout;
 import org.telegram.ui.ActionBar.INavigationLayout;
 import org.telegram.ui.Components.Reactions.ReactionsEffectOverlay;
 import org.telegram.ui.Components.Reactions.ReactionsLayoutInBubble;
@@ -318,7 +319,10 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
 
     private WindowInsetsCompat applyWindowInsets(View view, WindowInsetsCompat insets) {
         Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-        int tabsHeight = hasMainTabs ? AndroidUtilities.dp(MainTabsUiHelper.getTabsViewHeightDp()) : 0;
+        // Скрытая нижняя панель места не занимает: резервировать под неё отступ нельзя,
+        // иначе снизу остаётся пустая полоса.
+        final boolean tabsVisible = hasMainTabs && MainTabsLayout.isBottomNavigationVisible();
+        int tabsHeight = tabsVisible ? AndroidUtilities.dp(MainTabsUiHelper.getTabsViewHeightDp()) : 0;
         topInset = systemBars.top;
         bottomInset = systemBars.bottom + tabsHeight;
 
@@ -330,6 +334,11 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
             FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) settingsButton.getLayoutParams();
             params.topMargin = topInset + AndroidUtilities.dp(8);
             settingsButton.setLayoutParams(params);
+        }
+        if (adapter != null) {
+            // Новые страницы получат отступы при привязке, уже показанным — сейчас:
+            // поворот экрана меняет инсеты, а перепривязки может не быть.
+            adapter.setInsets(topInset, bottomInset);
         }
         applyInsetsToPages();
         return insets;

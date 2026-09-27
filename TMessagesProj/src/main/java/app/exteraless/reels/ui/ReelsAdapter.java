@@ -29,6 +29,12 @@ class ReelsAdapter extends RecyclerView.Adapter<ReelsAdapter.PageHolder> {
     private final HashMap<Long, TLRPC.Chat> chats = new HashMap<>();
     private final HashMap<Long, ReactionsLayoutInBubble.VisibleReaction> reactions = new HashMap<>();
 
+    // Отступы отдаём странице в момент привязки данных, а не один раз при получении
+    // инсетов: страницы переиспользуются и появляются позже, и те, что созданы после
+    // прихода инсетов, остались бы без них — тогда подпись уезжала под панель вкладок.
+    private int topInset;
+    private int bottomInset;
+
     ReelsAdapter(ReelsPageView.Delegate delegate) {
         this.delegate = delegate;
         this.messages = new ArrayList<>();
@@ -55,6 +61,11 @@ class ReelsAdapter extends RecyclerView.Adapter<ReelsAdapter.PageHolder> {
 
     int getItemCountSafe() {
         return messages.size();
+    }
+
+    void setInsets(int top, int bottom) {
+        topInset = top;
+        bottomInset = bottom;
     }
 
     void setChat(long dialogId, TLRPC.Chat chat) {
@@ -114,6 +125,7 @@ class ReelsAdapter extends RecyclerView.Adapter<ReelsAdapter.PageHolder> {
                 return;
             }
             long dialogId = message.getDialogId();
+            page.setInsets(topInset, bottomInset);
             page.bind(message, chats.get(dialogId), reactions.get(dialogId));
             page.setActive(false);
         }
