@@ -24,10 +24,8 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaController;
 import org.telegram.messenger.MessageObject;
-import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
-import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ChatActivity;
@@ -50,6 +48,7 @@ import java.util.HashSet;
 
 import app.exteraless.appearance.MainTabsUiHelper;
 import app.exteraless.reels.ReelsConfig;
+import app.exteraless.reels.ReelsCommentsController;
 import app.exteraless.reels.ReelsController;
 
 /**
@@ -101,10 +100,13 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
     private int scrollState = RecyclerView.SCROLL_STATE_IDLE;
     private boolean attachPending;
     private int attachRetries;
-    private int commentsRequestId;
+    private ReelsCommentsController commentsController;
+    private ReelsCommentsSheet commentsSheet;
+    private boolean commentsMutedBySheet;
     private int lastConfigGeneration;
     private int topInset;
     private int bottomInset;
+    private int imeInset;
     private boolean progressScheduled;
 
     public ReelsActivity() {
@@ -158,13 +160,10 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
 
     @Override
     public void onFragmentDestroy() {
+        closeCommentsSheet();
         AndroidUtilities.cancelRunOnUIThread(progressRunnable);
         AndroidUtilities.cancelRunOnUIThread(attachRunnable);
         progressScheduled = false;
-        if (commentsRequestId != 0) {
-            ConnectionsManager.getInstance(currentAccount).cancelRequest(commentsRequestId, false);
-            commentsRequestId = 0;
-        }
         if (player != null) {
             player.setCallback(null);
             player.release();
@@ -340,6 +339,7 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
         // иначе снизу остаётся пустая полоса.
         final boolean tabsVisible = hasMainTabs && MainTabsLayout.isBottomNavigationVisible();
         int tabsHeight = tabsVisible ? AndroidUtilities.dp(MainTabsUiHelper.getTabsViewHeightDp()) : 0;
+        imeInset = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
         topInset = systemBars.top;
         bottomInset = systemBars.bottom + tabsHeight;
 
@@ -358,6 +358,9 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
             adapter.setInsets(topInset, bottomInset);
         }
         applyInsetsToPages();
+        if (commentsSheet != null) {
+            commentsSheet.setBottomInsets(bottomInset, imeInset);
+        }
         return insets;
     }
 
@@ -723,7 +726,7 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
                 showReactionPicker(page, true);
                 break;
             case ReelsPageView.ACTION_COMMENTS:
-                openComments(page.getMessage());
+                openComments(page);
                 break;
             case ReelsPageView.ACTION_MUTE:
                 toggleMute();
@@ -852,61 +855,113 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
     }
 
     /**
-     * Открывает обсуждение поста канала.
+     * Открывает комментарии шторкой поверх ленты.
      *
-     * <p>Адрес ветки комментариев сервер не отдаёт: у сообщения есть только счётчик и
-     * идентификатор привязанной группы. Корневую реплику запрашиваем отдельным запросом
-     * и открываем группу сразу на ней.
+     * <p>Раньше это был переход в группу обсуждений: ролик исчезал, и обратно пришлось бы
+     * возвращаться по стеку. Шторка живёт внутри «Клипов», поэтому ролик под ней играет
+     * дальше — его только приглушают, чтобы звук комментариев не спорил с подписью.
      */
-    private void openComments(MessageObject message) {
-        if (message == null || message.messageOwner == null || message.messageOwner.replies == null) {
+    private void openComments(ReelsPageView page) {
+        MessageObject message = page.getMessage();
+        if (message == null || commentsSheet != null) {
             return;
         }
-        final long channelId = -message.getDialogId();
-        TLRPC.Chat chat = getMessagesController().getChat(channelId);
-        if (chat == null) {
-            showNoComments();
-            return;
-        }
-        TLRPC.TL_messages_getDiscussionMessage request = new TLRPC.TL_messages_getDiscussionMessage();
-        request.peer = MessagesController.getInputPeer(chat);
-        request.msg_id = message.getRealId();
-        commentsRequestId = ConnectionsManager.getInstance(currentAccount).sendRequest(request, (response, error) -> {
-            Runnable runnable = () -> {
-                commentsRequestId = 0;
-                long dialogId = 0;
-                int rootId = 0;
-                if (response instanceof TLRPC.TL_messages_discussionMessage) {
-                    TLRPC.TL_messages_discussionMessage discussion = (TLRPC.TL_messages_discussionMessage) response;
-                    getMessagesController().putUsers(discussion.users, false);
-                    getMessagesController().putChats(discussion.chats, false);
-                    for (int i = 0; i < discussion.messages.size(); i++) {
-                        TLRPC.Message root = discussion.messages.get(i);
-                        if (root instanceof TLRPC.TL_messageEmpty) {
-                            continue;
-                        }
-                        long candidate = MessageObject.getDialogId(root);
-                        if (candidate == 0 || candidate == channelId) {
-                            // Корень ветки лежит в группе обсуждений; сообщение самого
-                            // канала нам не подходит.
-                            continue;
-                        }
-                        dialogId = candidate;
-                        rootId = root.id;
-                        break;
-                    }
-                }
-                if (dialogId == 0) {
-                    showNoComments();
+        final ReactionsLayoutInBubble.VisibleReaction reaction = page.getFavoriteReaction();
+        commentsController = new ReelsCommentsController(currentAccount, new ReelsCommentsController.Callback() {
+            @Override
+            public void onThreadReady(TLRPC.Chat chat, MessageObject root, int totalCount) {
+                if (commentsSheet == null) {
                     return;
                 }
-                presentFragment(ChatActivity.of(dialogId, rootId));
-            };
-            // Ответ приходит не в главном потоке, а presentFragment оттуда роняет окно
-            // (CalledFromWrongThreadException). doOnIdle уводит и туда, и туда, где
-            // сейчас идёт анимация перехода: открывать чат из середины анимации нельзя.
-            NotificationCenter.getInstance(currentAccount).doOnIdle(runnable);
+                commentsSheet.onThreadReady(totalCount);
+            }
+
+            @Override
+            public void onCommentsUpdated(boolean firstPage) {
+                if (commentsSheet != null) {
+                    commentsSheet.refresh(firstPage);
+                }
+            }
+
+            @Override
+            public void onCommentReceived(MessageObject comment) {
+                if (commentsSheet != null) {
+                    commentsSheet.refresh(true);
+                }
+            }
+
+            @Override
+            public void onThreadFailed() {
+                showNoComments();
+                closeCommentsSheet();
+            }
+
+            @Override
+            public void onSendFailed() {
+                BulletinFactory.of(ReelsActivity.this).createSimpleBulletin(R.raw.error,
+                        LocaleController.getString(R.string.ReelsCommentFailed)).show();
+            }
         });
+
+        commentsSheet = new ReelsCommentsSheet(fragmentView.getContext(), commentsController, new ReelsCommentsSheet.Delegate() {
+            @Override
+            public void onSubmit(String text) {
+                if (commentsController != null) {
+                    commentsController.send(getSendMessagesHelper(), text);
+                }
+            }
+
+            @Override
+            public void onReaction(MessageObject comment) {
+                if (commentsController != null) {
+                    commentsController.react(getSendMessagesHelper(), ReelsActivity.this, comment, reaction);
+                    commentsSheet.refresh(false);
+                }
+            }
+
+            @Override
+            public void onDismiss() {
+                closeCommentsSheet();
+            }
+        });
+        commentsSheet.setBottomInsets(bottomInset, imeInset);
+        rootLayout.addView(commentsSheet, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        commentsSheet.show(reaction, message.getRepliesCount());
+        muteForComments();
+        commentsController.start(message);
+    }
+
+    /**
+     * Ролик под шторкой играет, но без звука: иначе подпись комментария спорила бы с
+     * роликом. Возвращаем тот звук, который был, а не тот, что записан в настройках:
+     * пользователь мог включить его уже после запуска вкладки.
+     */
+    private void muteForComments() {
+        if (player == null) {
+            return;
+        }
+        commentsMutedBySheet = !player.isMuted();
+        if (commentsMutedBySheet) {
+            player.setMuted(true);
+        }
+    }
+
+    private void closeCommentsSheet() {
+        if (commentsMutedBySheet) {
+            commentsMutedBySheet = false;
+            if (player != null) {
+                player.setMuted(false);
+            }
+        }
+        if (commentsController != null) {
+            commentsController.cancel();
+            commentsController = null;
+        }
+        if (commentsSheet != null) {
+            rootLayout.removeView(commentsSheet);
+            commentsSheet = null;
+        }
     }
 
     private void showNoComments() {
@@ -1134,6 +1189,15 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
     }
 
     @Override
+    public boolean onBackPressed(boolean invoked) {
+        if (commentsSheet != null) {
+            commentsSheet.hide();
+            return false;
+        }
+        return super.onBackPressed(invoked);
+    }
+
+    @Override
     public void onPause() {
         super.onPause();
         if (player != null) {
@@ -1142,10 +1206,6 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
         AndroidUtilities.cancelRunOnUIThread(progressRunnable);
         AndroidUtilities.cancelRunOnUIThread(attachRunnable);
         progressScheduled = false;
-        if (commentsRequestId != 0) {
-            ConnectionsManager.getInstance(currentAccount).cancelRequest(commentsRequestId, false);
-            commentsRequestId = 0;
-        }
         if (uiResumedHeld) {
             uiResumedHeld = false;
             controller.setUiResumed(false);
@@ -1163,6 +1223,9 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
     @Override
     public void onBecomeFullyHidden() {
         viewportActive = false;
+        if (commentsSheet != null) {
+            commentsSheet.hide();
+        }
         if (player != null) {
             player.detach();
         }

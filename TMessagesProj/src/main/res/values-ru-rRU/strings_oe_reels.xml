@@ -41,4 +41,26 @@
     <string name="ReelsLess">свернуть</string>
     <string name="ReelsComments">Комментарии</string>
     <string name="ReelsNoComments">Комментариев пока нет</string>
+    <string name="ReelsCommentHint">Добавить комментарий…</string>
+    <string name="ReelsSend">Отправить</string>
+    <string name="ReelsCloseComments">Закрыть комментарии</string>
+    <string name="ReelsJustNow">только что</string>
+    <string name="ReelsCommentSent">Комментарий отправлен</string>
+    <string name="ReelsCommentFailed">Комментарий не отправлен</string>
+    <string name="ReelsCommentCount_one">%d комментарий</string>
+    <string name="ReelsCommentCount_few">%d комментария</string>
+    <string name="ReelsCommentCount_many">%d комментариев</string>
+    <string name="ReelsCommentCount_other">%d комментариев</string>
+    <string name="ReelsMinutesAgo_one">%d минуту</string>
+    <string name="ReelsMinutesAgo_few">%d минуты</string>
+    <string name="ReelsMinutesAgo_many">%d минут</string>
+    <string name="ReelsMinutesAgo_other">%d минут</string>
+    <string name="ReelsHoursAgo_one">%d час</string>
+    <string name="ReelsHoursAgo_few">%d часа</string>
+    <string name="ReelsHoursAgo_many">%d часов</string>
+    <string name="ReelsHoursAgo_other">%d часов</string>
+    <string name="ReelsDaysAgo_one">%d день</string>
+    <string name="ReelsDaysAgo_few">%d дня</string>
+    <string name="ReelsDaysAgo_many">%d дней</string>
+    <string name="ReelsDaysAgo_other">%d дней</string>
 </resources>

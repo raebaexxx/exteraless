@@ -41,4 +41,18 @@
     <string name="ReelsLess">less</string>
     <string name="ReelsComments">Comments</string>
     <string name="ReelsNoComments">No comments here</string>
+    <string name="ReelsCommentHint">Add a comment…</string>
+    <string name="ReelsSend">Send</string>
+    <string name="ReelsCloseComments">Close comments</string>
+    <string name="ReelsJustNow">now</string>
+    <string name="ReelsCommentSent">Comment sent</string>
+    <string name="ReelsCommentFailed">Comment not sent</string>
+    <string name="ReelsCommentCount_one">%d comment</string>
+    <string name="ReelsCommentCount_other">%d comments</string>
+    <string name="ReelsMinutesAgo_one">%d min</string>
+    <string name="ReelsMinutesAgo_other">%d min</string>
+    <string name="ReelsHoursAgo_one">%d h</string>
+    <string name="ReelsHoursAgo_other">%d h</string>
+    <string name="ReelsDaysAgo_one">%d d</string>
+    <string name="ReelsDaysAgo_other">%d d</string>
 </resources>
