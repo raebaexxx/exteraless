@@ -24,8 +24,10 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaController;
 import org.telegram.messenger.MessageObject;
+import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
+import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ChatActivity;
@@ -67,10 +69,11 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
 
     private static final int PROGRESS_INTERVAL_MS = 100;
     private static final int LOAD_AHEAD_PAGES = 2;
-    private static final long PREFETCH_DELAY_MS = 250L;
+    private static final int ATTACH_RETRY_LIMIT = 5;
+    private static final long ATTACH_RETRY_DELAY_MS = 60L;
 
     private final Runnable progressRunnable = this::updateProgress;
-    private final Runnable postDelayedAttach = this::attachPlayerForCurrentPage;
+    private final Runnable attachRunnable = this::attachPlayerForCurrentPage;
 
     private RecyclerListView listView;
     private ReelsAdapter adapter;
@@ -95,6 +98,9 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
     private boolean uiResumedHeld;
     private int currentPage = -1;
     private int previousPage = -1;
+    private int scrollState = RecyclerView.SCROLL_STATE_IDLE;
+    private boolean attachPending;
+    private int attachRetries;
     private int lastConfigGeneration;
     private int topInset;
     private int bottomInset;
@@ -152,7 +158,7 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
     @Override
     public void onFragmentDestroy() {
         AndroidUtilities.cancelRunOnUIThread(progressRunnable);
-        AndroidUtilities.cancelRunOnUIThread(postDelayedAttach);
+        AndroidUtilities.cancelRunOnUIThread(attachRunnable);
         progressScheduled = false;
         if (player != null) {
             player.setCallback(null);
@@ -228,13 +234,19 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
         listView.setOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrollStateChanged(RecyclerView view, int newState) {
+                scrollState = newState;
                 if (newState == RecyclerView.SCROLL_STATE_IDLE) {
                     updateCurrentPage();
+                    if (attachPending) {
+                        attachPending = false;
+                        attachPlayerForCurrentPage();
+                    }
                 }
             }
 
             @Override
             public void onScrolled(RecyclerView view, int dx, int dy) {
+                followScrollWithPlayer();
                 if (dy == 0) {
                     return;
                 }
@@ -403,12 +415,50 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
                 controller.onPageSeen(message);
             }
         }
-        AndroidUtilities.cancelRunOnUIThread(postDelayedAttach);
-        AndroidUtilities.runOnUIThread(postDelayedAttach, PREFETCH_DELAY_MS);
         if (view != null) {
             view.setActive(true);
         }
         maybeLoadMore(page);
+        attachForCurrentPage();
+    }
+
+    /**
+     * Переключает ролик на текущую страницу, но только когда список остановился.
+     *
+     * <p>Плеер один на всю ленту, и ролик на всю страницу, поэтому менять его посреди
+     * листания нельзя: уезжающая страница на секунду покажет чужое видео. Ждём конца
+     * прокрутки — к этому моменту список уже прилип к новой странице.
+     */
+    private void attachForCurrentPage() {
+        if (scrollState != RecyclerView.SCROLL_STATE_IDLE) {
+            attachPending = true;
+            return;
+        }
+        attachPending = false;
+        attachRetries = 0;
+        attachPlayerForCurrentPage();
+    }
+
+    /**
+     * Сдвигает слой с видео вместе с его страницей.
+     *
+     * <p>Слой лежит под пейджером и нарисован один раз на весь экран. Если не двигать
+     * его вместе со страницей, при листании ролик стоит на месте, а подписи уезжают:
+     * видно, что видео ни к чему не привязано. Двигаем ровно на столько, на сколько
+     * уехала страница-владелец.
+     */
+    private void followScrollWithPlayer() {
+        if (playerLayer == null || layoutManager == null || snapHelper == null || listView == null) {
+            return;
+        }
+        View snapView = snapHelper.findSnapView(layoutManager);
+        if (snapView == null) {
+            return;
+        }
+        int top = layoutManager.getDecoratedTop(snapView) - listView.getPaddingTop();
+        if (playerLayer.getTranslationY() != top) {
+            playerLayer.setTranslationY(top);
+        }
     }
 
     private void maybeLoadMore(int page) {
@@ -440,6 +490,12 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
         }
         ReelsPageView page = findPageView(currentPage);
         if (page == null) {
+            // Страница ещё не отрисована — после программной прокрутки это обычное дело.
+            // Пробуем ещё пару раз, иначе ролик не запустится до следующего касания.
+            if (currentPage >= 0 && currentPage < adapter.getItemCountSafe() && attachRetries < ATTACH_RETRY_LIMIT) {
+                attachRetries++;
+                AndroidUtilities.runOnUIThread(attachRunnable, ATTACH_RETRY_DELAY_MS);
+            }
             return;
         }
         MessageObject message = page.getMessage();
@@ -458,10 +514,39 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
             // Фотография или GIF без документа: ролика не будет, оставляем постер.
             page.showMedia();
         }
+        if (page.isPausedByUser() && !page.isPausedByThisTap()) {
+            // Пауза осталась с прошлого захода на страницу: в Reels возвращаешься — и
+            // ролик играет.
+            page.setPausedByUser(false);
+        }
         if (!page.isPausedByUser()) {
             player.play();
         }
+        syncPosters();
         updateProgress();
+    }
+
+    /**
+     * Видео на экране одно, и принадлежит оно ровно одной странице. У неё постер убран,
+     * у всех прочих — возвращён, иначе на уезжающей странице вместо её кадра окажется
+     * чужой ролик.
+     */
+    private void syncPosters() {
+        if (listView == null) {
+            return;
+        }
+        MessageObject playing = player != null ? player.getPlayingMessage() : null;
+        for (int i = 0; i < listView.getChildCount(); i++) {
+            View child = listView.getChildAt(i);
+            if (!(child instanceof ReelsPageView)) {
+                continue;
+            }
+            ReelsPageView page = (ReelsPageView) child;
+            if (page.getMessage() == playing) {
+                continue;
+            }
+            page.showMedia();
+        }
     }
 
     @Override
@@ -502,7 +587,9 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
         ReelsPageView page = findPageView(currentPage);
         if (page != null && player != null && player.isPlayingMessage(page.getMessage())) {
             page.hideMedia();
+            return;
         }
+        syncPosters();
     }
 
     @Override
@@ -567,11 +654,18 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
     // ---- жесты и действия ----
 
     @Override
-    public void onSingleTap(ReelsPageView page) {
-        if (player == null) {
-            return;
+    public boolean onSingleTap(ReelsPageView page) {
+        if (player == null || player.getPlayingMessage() == null) {
+            // Фотография или GIF без документа: играть не есть что, тап ничего не значит.
+            return false;
         }
-        boolean paused = !player.isPlaying();
+        if (page != findPageView(currentPage)) {
+            return false;
+        }
+        // Состояние держим на странице, а не вычисляем из плеера: тот не готовый или
+        // буферизующий отвечает «не играет», и тап в такой момент не переключал бы
+        // ничего — выглядело бы как сломанная пауза.
+        boolean paused = !page.isPausedByUser();
         page.setPausedByUser(paused);
         if (paused) {
             player.pause();
@@ -579,10 +673,26 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
             player.play();
         }
         page.showPlayIcon(paused);
+        if (!paused) {
+            updateProgress();
+        }
+        return paused;
     }
 
     @Override
     public void onDoubleTap(ReelsPageView page, float x, float y) {
+        if (page.isPausedByThisTap()) {
+            // Первый тап двойного нажатия успел поставить паузу. В Reels двойной тап
+            // только ставит реакцию, поэтому playback возвращаем, а не оставляем ролик
+            // на паузе из-за того, что человек хотел лайкнуть.
+            page.setPausedByThisTap(false);
+            page.setPausedByUser(false);
+            page.hidePlayIcon();
+            if (player != null && page == findPageView(currentPage)) {
+                player.play();
+                updateProgress();
+            }
+        }
         toggleReaction(page, true);
     }
 
@@ -606,6 +716,9 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
                 break;
             case ReelsPageView.ACTION_REACTIONS_MENU:
                 showReactionPicker(page, true);
+                break;
+            case ReelsPageView.ACTION_COMMENTS:
+                openComments(page.getMessage());
                 break;
             case ReelsPageView.ACTION_MUTE:
                 toggleMute();
@@ -731,6 +844,55 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
                         LocaleController.getString(R.string.ReelsSaved)).show();
             }
         });
+    }
+
+    /**
+     * Открывает обсуждение поста канала.
+     *
+     * <p>Адрес ветки комментариев сервер не отдаёт: у сообщения есть только счётчик и
+     * идентификатор привязанной группы. Корневую реплику запрашиваем отдельным запросом
+     * и открываем группу сразу на ней.
+     */
+    private void openComments(MessageObject message) {
+        if (message == null || message.messageOwner == null || message.messageOwner.replies == null) {
+            return;
+        }
+        final long channelId = -message.getDialogId();
+        TLRPC.Chat chat = getMessagesController().getChat(channelId);
+        if (chat == null) {
+            showNoComments();
+            return;
+        }
+        TLRPC.TL_messages_getDiscussionMessage request = new TLRPC.TL_messages_getDiscussionMessage();
+        request.peer = MessagesController.getInputPeer(chat);
+        request.msg_id = message.getRealId();
+        ConnectionsManager.getInstance(currentAccount).sendRequest(request, (response, error) -> {
+            if (!(response instanceof TLRPC.TL_messages_discussionMessage)) {
+                showNoComments();
+                return;
+            }
+            TLRPC.TL_messages_discussionMessage discussion = (TLRPC.TL_messages_discussionMessage) response;
+            getMessagesController().putUsers(discussion.users, false);
+            getMessagesController().putChats(discussion.chats, false);
+            for (int i = 0; i < discussion.messages.size(); i++) {
+                TLRPC.Message root = discussion.messages.get(i);
+                if (root instanceof TLRPC.TL_messageEmpty) {
+                    continue;
+                }
+                long dialogId = MessageObject.getDialogId(root);
+                if (dialogId == channelId) {
+                    continue;
+                }
+                presentFragment(ChatActivity.of(dialogId, root.id));
+                return;
+            }
+            showNoComments();
+        });
+    }
+
+    private void showNoComments() {
+        BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                LocaleController.getString(R.string.ReelsNoComments)).show();
     }
 
     private void hideChannel(MessageObject message) {
@@ -959,6 +1121,7 @@ public class ReelsActivity extends BaseFragment implements NotificationCenter.No
             player.pause();
         }
         AndroidUtilities.cancelRunOnUIThread(progressRunnable);
+        AndroidUtilities.cancelRunOnUIThread(attachRunnable);
         progressScheduled = false;
         if (uiResumedHeld) {
             uiResumedHeld = false;

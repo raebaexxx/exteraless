@@ -48,6 +48,7 @@ class ReelsActionRail extends LinearLayout {
 
     private final ChannelAvatarButton avatarButton;
     private final ButtonSlot reactSlot;
+    private final ButtonSlot commentsSlot;
     private final ButtonSlot shareSlot;
 
     ReelsActionRail(Context context, Delegate delegate) {
@@ -59,6 +60,8 @@ class ReelsActionRail extends LinearLayout {
         addView(avatarButton, itemParams());
 
         reactSlot = addButton(context, delegate, null, ReelsPageView.ACTION_REACT, ActionButton.Style.EMOJI);
+        commentsSlot = addButton(context, delegate, R.drawable.menu_stream_comments_24,
+                ReelsPageView.ACTION_COMMENTS, ActionButton.Style.ICON);
         shareSlot = addButton(context, delegate, R.drawable.msg_share, ReelsPageView.ACTION_SHARE, ActionButton.Style.ICON);
         addButton(context, delegate, R.drawable.msg_download, ReelsPageView.ACTION_SAVE, ActionButton.Style.ICON);
         addButton(context, delegate, R.drawable.filled_forward, ReelsPageView.ACTION_OPEN_CHAT, ActionButton.Style.ICON);
@@ -87,6 +90,8 @@ class ReelsActionRail extends LinearLayout {
                 return LocaleController.getString(R.string.ReelsReact);
             case ReelsPageView.ACTION_SHARE:
                 return LocaleController.getString(R.string.ReelsShare);
+            case ReelsPageView.ACTION_COMMENTS:
+                return LocaleController.getString(R.string.ReelsComments);
             case ReelsPageView.ACTION_SAVE:
                 return LocaleController.getString(R.string.ReelsSave);
             case ReelsPageView.ACTION_OPEN_CHAT:
@@ -117,6 +122,13 @@ class ReelsActionRail extends LinearLayout {
 
         int forwards = message != null && message.messageOwner != null ? message.messageOwner.forwards : 0;
         shareSlot.setCount(forwards);
+
+        // Обсуждение есть не у каждого поста: где его нет, кнопку прячем, но место она
+        // оставляет — иначе колонка дёргалась бы при листании.
+        boolean hasComments = ReelsPageView.hasComments(message);
+        commentsSlot.button.setVisibility(hasComments ? VISIBLE : INVISIBLE);
+        commentsSlot.setCount(message != null ? message.getRepliesCount() : 0);
+        commentsSlot.setCounterVisible(hasComments);
     }
 
     void setLikeState(boolean chosen, int count) {

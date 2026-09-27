@@ -56,6 +56,9 @@ public class ReelsPageView extends FrameLayout {
     public static final int ACTION_HIDE_CHANNEL = 5;
     public static final int ACTION_REACTIONS_MENU = 6;
     public static final int ACTION_MUTE = 7;
+    public static final int ACTION_COMMENTS = 8;
+
+    private static final long HIDE_POSTER_MS = 140L;
 
     private static final int CAPTION_COLLAPSED_LINES = 2;
     private static final int CAPTION_EXPANDED_LINES = 8;
@@ -64,7 +67,8 @@ public class ReelsPageView extends FrameLayout {
     private static final int COLOR_TEXT_MUTED = 0x99FFFFFF;
 
     public interface Delegate {
-        void onSingleTap(ReelsPageView page);
+        /** Переключает паузу и возвращает новое состояние: true — поставлена. */
+        boolean onSingleTap(ReelsPageView page);
 
         void onDoubleTap(ReelsPageView page, float x, float y);
 
@@ -100,6 +104,7 @@ public class ReelsPageView extends FrameLayout {
     private boolean captionExpanded;
     private boolean gestureStolen;
     private boolean pausedByUser;
+    private boolean pausedByThisTap;
     private boolean active;
     private float downX;
     private float downY;
@@ -229,17 +234,13 @@ public class ReelsPageView extends FrameLayout {
             }
 
             @Override
-            public boolean onSingleTapConfirmed(MotionEvent e) {
-                delegate.onSingleTap(ReelsPageView.this);
-                return true;
-            }
-
-            @Override
             public boolean onDoubleTap(MotionEvent e) {
                 delegate.onDoubleTap(ReelsPageView.this, e.getX(), e.getY());
                 return true;
             }
         });
+        setClickable(true);
+        setOnClickListener(v -> pausedByThisTap = delegate.onSingleTap(ReelsPageView.this));
     }
 
     private int dp(float value) {
@@ -269,11 +270,15 @@ public class ReelsPageView extends FrameLayout {
         this.favoriteReaction = favoriteReaction;
         captionExpanded = false;
         pausedByUser = false;
+        pausedByThisTap = false;
         captionText.setMaxLines(CAPTION_COLLAPSED_LINES);
         caption = null;
         playIcon.removeCallbacks(hidePlayIcon);
         playIcon.setVisibility(INVISIBLE);
         captionText.setEllipsize(TextUtils.TruncateAt.END);
+        // Переиспользованная вьюха не имеет права унаследовать скрытый постер
+        // предыдущего ролика: сначала показываем кадр, потом его гасит первый кадр видео.
+        showMedia();
 
         channelTitle.setText(chat != null && chat.title != null ? chat.title : "");
 
@@ -395,6 +400,17 @@ public class ReelsPageView extends FrameLayout {
         return message;
     }
 
+    /**
+     * Есть ли у поста обсуждение: старая привязанная группа обсуждений либо новые
+     * комментарии прямо в канале. У постов без обсуждения кнопки комментариев нет.
+     */
+    static boolean hasComments(MessageObject message) {
+        if (message == null || message.messageOwner == null || message.messageOwner.replies == null) {
+            return false;
+        }
+        return message.isComments() || message.messageOwner.replies.channel_id != 0;
+    }
+
     public TLRPC.Chat getChat() {
         return chat;
     }
@@ -412,6 +428,7 @@ public class ReelsPageView extends FrameLayout {
         this.active = active;
         progressView.setVisibility(active ? VISIBLE : INVISIBLE);
         if (!active) {
+            pausedByThisTap = false;
             playIcon.removeCallbacks(hidePlayIcon);
             playIcon.setVisibility(INVISIBLE);
             bufferingIndicator.setVisibility(INVISIBLE);
@@ -429,14 +446,45 @@ public class ReelsPageView extends FrameLayout {
         pausedByUser = value;
     }
 
-    /** Прячет постер, когда его место занимает слой плеера. */
+    /**
+     * Пауза, поставленная предыдущим тапом того же двойного нажатия. Двойной тап в
+     * Reels только ставит реакцию, поэтому такую паузу он отменяет — иначе ролик мигнул
+     * бы и замер на полсекунды.
+     */
+    public boolean isPausedByThisTap() {
+        return pausedByThisTap;
+    }
+
+    public void setPausedByThisTap(boolean value) {
+        pausedByThisTap = value;
+    }
+
+    /**
+     * Прячет постер, когда его место занимает слой плеера. Гасим понемногу: резкое
+     * исчезновение кадра на середине листания читается как сбой, а не как смена ролика.
+     */
     public void hideMedia() {
-        posterView.setVisibility(INVISIBLE);
-        posterView.cancelLoading();
+        if (posterView.getVisibility() == INVISIBLE && posterView.getAlpha() == 0f) {
+            return;
+        }
+        posterView.animate().cancel();
+        posterView.animate().alpha(0f).setDuration(HIDE_POSTER_MS).withEndAction(() -> {
+            posterView.setVisibility(INVISIBLE);
+            posterView.cancelLoading();
+        }).start();
     }
 
     public void showMedia() {
+        posterView.animate().cancel();
+        posterView.setAlpha(1f);
         posterView.setVisibility(VISIBLE);
+    }
+
+    /** Убирает значок паузы: ролик снова играет. */
+    public void hidePlayIcon() {
+        playIcon.removeCallbacks(hidePlayIcon);
+        playIcon.animate().cancel();
+        playIcon.setVisibility(INVISIBLE);
     }
 
     public void showBuffering(boolean buffering) {
@@ -571,6 +619,10 @@ public class ReelsPageView extends FrameLayout {
                 return true;
             case MotionEvent.ACTION_UP:
                 if (!gestureStolen) {
+                    // Пауза сразу, без ожидания «а не двойной ли это тап»: ждать here
+                    // нечего, двойной тап умеет отменить эту паузу сам. Задержка в
+                    // onSingleTapConfirmed из GestureDetector как раз и ломала паузу —
+                    // нетерпеливый второй тап превращал одиночный в двойной.
                     performClick();
                 }
                 return true;

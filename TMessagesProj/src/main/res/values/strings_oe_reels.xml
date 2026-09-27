@@ -39,4 +39,6 @@
     <string name="HideReelsTab">Hide clips tab</string>
     <string name="ReelsMore">more</string>
     <string name="ReelsLess">less</string>
+    <string name="ReelsComments">Comments</string>
+    <string name="ReelsNoComments">No comments here</string>
 </resources>

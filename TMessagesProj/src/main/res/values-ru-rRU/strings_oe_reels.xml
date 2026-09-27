@@ -39,4 +39,6 @@
     <string name="HideReelsTab">Скрыть вкладку «Клипы»</string>
     <string name="ReelsMore">ещё</string>
     <string name="ReelsLess">свернуть</string>
+    <string name="ReelsComments">Комментарии</string>
+    <string name="ReelsNoComments">Комментариев пока нет</string>
 </resources>
