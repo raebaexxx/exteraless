@@ -176,7 +176,10 @@ android {
             glyphKey = System.getenv('GLYPH_API_KEY') ?: glyphKey
         }
 
-        manifestPlaceholders += [MAPS_API_KEY: mapsKey, GLYPH_API_KEY: glyphKey]
+        // Подпись в лаунчере вынесена в placeholder: тестовые сборки рядом с основной
+        // отличаются названием, а обычные собираются ровно как раньше.
+        manifestPlaceholders += [MAPS_API_KEY: mapsKey, GLYPH_API_KEY: glyphKey,
+                                 appLabel: project.findProperty('appLabel') ?: '@string/NagramX']
 
         buildConfigField 'String', 'BUILD_VERSION_STRING', '"' + APP_VERSION_NAME + '"'
         buildConfigField 'String', 'BUILD_COMMIT_ID', '"' + shortCommit + '"'

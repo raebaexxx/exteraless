@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="NagramX" translatable="false">exteraless</string>
+    <string name="NagramXClips" translatable="false">exteraless · Клипы</string>
     <string name="XChannel">Nagram X Channel</string>
     <string name="EnableSaveDeletedMessages">Save Deleted Messages</string>
     <string name="DeletedMessage">deleted</string>
