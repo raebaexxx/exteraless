@@ -63,6 +63,7 @@ public class ReelsCommentsController implements NotificationCenter.NotificationC
     private boolean observing;
 
     private long dialogId;
+    private TLRPC.Peer threadPeer;
     private int rootId;
     private MessageObject root;
     private TLRPC.Chat chat;
@@ -87,7 +88,15 @@ public class ReelsCommentsController implements NotificationCenter.NotificationC
 
     /** Можно ли писать в ветку: в группе обсуждений и в канале с комментариями. */
     public boolean canSend() {
-        return chat != null && ChatObject.canSendMessages(chat);
+        if (root == null) {
+            return false;
+        }
+        if (chat == null) {
+            // Чата обсуждений в кэше нет: прав проверить нечем. Разрешаем и полагаемся на
+            // ответ сервера — при отказе вылезет плашка, а не исчезнет поле ввода.
+            return true;
+        }
+        return ChatObject.canSendMessages(chat);
     }
 
     public boolean isMyReactionSet(MessageObject comment) {
@@ -146,6 +155,7 @@ public class ReelsCommentsController implements NotificationCenter.NotificationC
                 continue;
             }
             dialogId = candidate;
+            threadPeer = message.peer_id;
             rootId = message.id;
             root = new MessageObject(account, message, true, false);
             break;
@@ -154,18 +164,55 @@ public class ReelsCommentsController implements NotificationCenter.NotificationC
             callback.onThreadFailed();
             return;
         }
-        chat = MessagesController.getInstance(account).getChat(dialogId);
+        // getChat ждёт идентификатор чата (положительный), а getDialogId отдаёт
+        // идентификатор диалога (у канала он отрицательный). Со знаком минус.
+        chat = MessagesController.getInstance(account).getChat(-dialogId);
+        if (chat == null) {
+            chat = findChat(discussion.chats, -dialogId);
+        }
         totalCount = post.getRepliesCount();
         callback.onThreadReady(chat, root, totalCount);
         loadFirstPage();
+    }
+
+    /**
+     * Адрес ветки для запросов. Строим его из чата, а если чата в кэше нет — из пира
+     * корневого сообщения: {@code getInputPeer(TLRPC.Chat)} падает на null, и ровно это
+     * валило экран, когда сервер не присылал описание группы обсуждений.
+     */
+    private TLRPC.InputPeer threadInput() {
+        if (chat != null) {
+            return MessagesController.getInputPeer(chat);
+        }
+        if (threadPeer == null) {
+            return null;
+        }
+        return MessagesController.getInstance(account).getInputPeer(threadPeer);
+    }
+
+    private static TLRPC.Chat findChat(ArrayList<TLRPC.Chat> chats, long id) {
+        if (chats == null) {
+            return null;
+        }
+        for (int i = 0; i < chats.size(); i++) {
+            if (chats.get(i) != null && chats.get(i).id == id) {
+                return chats.get(i);
+            }
+        }
+        return null;
     }
 
     private void loadFirstPage() {
         if (pageRequestId != 0) {
             return;
         }
+        TLRPC.InputPeer peer = threadInput();
+        if (peer == null) {
+            callback.onThreadFailed();
+            return;
+        }
         TLRPC.TL_messages_getReplies request = new TLRPC.TL_messages_getReplies();
-        request.peer = MessagesController.getInstance(account).getInputPeer(chat);
+        request.peer = peer;
         request.msg_id = rootId;
         // offset_id = 1 с отрицательным add_offset — способ запросить самые новые.
         request.offset_id = 1;
@@ -180,9 +227,14 @@ public class ReelsCommentsController implements NotificationCenter.NotificationC
         if (loadingMore || endReached || pageRequestId != 0 || comments.isEmpty()) {
             return;
         }
+        TLRPC.InputPeer peer = threadInput();
+        if (peer == null) {
+            loadingMore = false;
+            return;
+        }
         loadingMore = true;
         TLRPC.TL_messages_getReplies request = new TLRPC.TL_messages_getReplies();
-        request.peer = MessagesController.getInstance(account).getInputPeer(chat);
+        request.peer = peer;
         request.msg_id = rootId;
         request.offset_id = comments.get(0).getId();
         request.add_offset = 0;
